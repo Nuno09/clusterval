@@ -12,9 +12,9 @@ with open('LICENSE') as f:
     license = f.read()
 
 setup(
-    name='indexes',
-    version='1',
-    description='Package for using cluster validation indexes',
+    name='validclust',
+    version='1.0',
+    description='Package useful for clustering validation',
     long_description=readme,
     author='Nuno Silva',
     author_email='nuno.da.silva@tecnico.ulisboa.pt',

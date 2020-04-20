@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from .context import indexes
+from .context import validclust
 
 import unittest
 
