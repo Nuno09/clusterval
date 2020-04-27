@@ -5,7 +5,7 @@ Calculate external validation validclust
 
 
 
-def calculate(partition_a, partition_b):
+def calculate_external(partition_a, partition_b):
     import math
     import numpy as np
 
@@ -103,7 +103,7 @@ def calculate(partition_a, partition_b):
     #F-Measure
     f_measure = 2*a / (2*a + b + c)
 
-    #VI ----> FIX
+    #Variation of information - lower value is better
     mutual_info = 0
     entropy_C = 0
     entropy_P = 0
@@ -127,8 +127,14 @@ def calculate(partition_a, partition_b):
 
     VI = -entropy_C - entropy_P - (2*mutual_info)
 
-    return [rand_index, adjusted_rand_index, FM, jaccard, adjusted_wallace, van_dongen, hubert, hub_normalized, f_measure, VI]
+    #Minkowski
 
+    if c == 0:
+        MS = 0
+    else:
+        MS = math.sqrt(b + c + 2 * a) / math.sqrt(c)
+
+    return [rand_index, adjusted_rand_index, FM, jaccard, adjusted_wallace, van_dongen, hubert, hub_normalized, f_measure, VI, MS]
 
 
 if __name__ == '__main__':
@@ -140,7 +146,7 @@ if __name__ == '__main__':
 
 
     dicio_statistics = defaultdict(str)
-    indexes = ('rand', 'adjusted', 'FM', 'jaccard', 'adjusted_wallace', 'van_dongen', 'huberts', 'huberts_normalized', 'F-Measure', 'VI')
+    indexes = ('rand', 'adjusted', 'FM', 'jaccard', 'adjusted_wallace', 'van_dongen', 'huberts', 'huberts_normalized', 'F-Measure', 'VI', 'Minkowski')
 
     for index in indexes:
         dicio_statistics[index] = []
@@ -155,7 +161,7 @@ if __name__ == '__main__':
         boot1 = resample(data, replace=False, n_samples=11)
         boot2 = resample(data, replace=False, n_samples=18)
         boot = [boot1, boot2]
-        computed_indexes = calculate(cluster, boot)
+        computed_indexes = calculate_external(cluster, boot)
 
         # print(computed_indexes)
         for pos, index in enumerate(indexes):
