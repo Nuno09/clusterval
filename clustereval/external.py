@@ -1,5 +1,5 @@
 """
-Calculate external validation validclust
+Calculate external validation. Two partitions should be given.
 
 """
 
