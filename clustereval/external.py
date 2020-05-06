@@ -47,6 +47,7 @@ def calculate_external(partition_a, partition_b):
     d = (N ** 2 + sum_all_squared - (sum_R_squared + sum_C_squared)) / 2
 
     M = (a + b + c + d)
+    #print(M)
     # Rand Index
     rand_index = (a + d) / (a + b + c + d)
 
@@ -144,7 +145,6 @@ if __name__ == '__main__':
     from tabulate import tabulate
     import math
 
-
     dicio_statistics = defaultdict(str)
     indexes = ('rand', 'adjusted', 'FM', 'jaccard', 'adjusted_wallace', 'van_dongen', 'huberts', 'huberts_normalized', 'F-Measure', 'VI', 'Minkowski')
 
@@ -154,7 +154,6 @@ if __name__ == '__main__':
     data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
     cluster = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],
                [10, 12, 13, 15, 16, 17, 19]]
-
 
 
     for i in range(50):
@@ -169,6 +168,7 @@ if __name__ == '__main__':
 
     for k,v in dicio_statistics.items():
         dicio_statistics[k] = mean(v)
+
 
     print(tabulate([list(dicio_statistics.values())], headers=list(dicio_statistics.keys())))
 
