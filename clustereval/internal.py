@@ -2,12 +2,13 @@
 Calculate internal validation. Dataset with pairs and their distances should be given.
 
 """
+import  itertools
+from collections import defaultdict
+import math
+
 def calculate_internal(data, clusters, k):
-    from scipy.cluster.hierarchy import cophenet
     import pandas as pd
     import csv
-    from collections import defaultdict
-
 
     distance_dict = defaultdict(dict)
 
@@ -63,10 +64,12 @@ def calculate_internal(data, clusters, k):
     sdbw = s_dbw(clusters, distance_dict, k)
 
     #DB**
+    db = db_improved(clusters, distance_dict, k)
 
     #S
+    s = silhouette(clusters, distance_dict, k)
 
-    return {'CVNN' : cvnn_idx, 'XB**' : xb, 'S_Dbw' : sdbw}
+    return {'CVNN': cvnn_idx, 'XB**': xb, 'S_Dbw': sdbw, 'DB*': db, 'S': s}
 
 
 def cvnn(clusters, data, k):
@@ -77,7 +80,7 @@ def cvnn(clusters, data, k):
     Lower value of this metric indicates a better clustering result.
 
     """
-    import itertools
+
 
     dict_clusters = {i: clusters[i] for i in range(len(clusters))}
     separation = []
@@ -102,7 +105,6 @@ def cvnn(clusters, data, k):
             sum_of_weights += count_nn / k
 
         separation.append(sum_of_weights / n_i)
-
 
     return (max(separation) / len(clusters)) + (compactness / len(clusters))
 
@@ -136,8 +138,7 @@ def xb_improved(clusters, data, k):
     :param data:
     :return:
     '''
-    import math
-    import itertools
+
 
     centroids = cluster_centroids(clusters, data)
     max_dist_elements = []
@@ -163,7 +164,7 @@ def xb_improved(clusters, data, k):
 
 
 def cluster_centroids(clusters, data):
-    import itertools
+
 
     cluster_centroids_lst = []
     for cluster in clusters:
@@ -196,9 +197,8 @@ def s_dbw(clusters, data, k):
     return scat(clusters, data) + dens_bw(clusters, data)
 
 def scat(clusters, data):
-    from itertools import combinations
     from statistics import variance
-    import math
+
 
     sum_variances = 0
     variance_d = variance(float(el) for key, el in data.items())
@@ -208,7 +208,7 @@ def scat(clusters, data):
         if len(cluster) < 3:
             continue
         variance_list = []
-        pairs = list(combinations(cluster, 2))
+        pairs = list(itertools.combinations(cluster, 2))
         for pair in pairs:
             if pair not in data.keys():
                 pair = (pair[1], pair[0])
@@ -221,8 +221,6 @@ def scat(clusters, data):
 
 
 def dens_bw(clusters, data):
-    from statistics import stdev
-    from collections import defaultdict
 
     n_c = len(clusters)
     avg_std_deviation = avg_stdev(data, clusters)
@@ -249,7 +247,7 @@ def dens_bw(clusters, data):
 
 
 def density(data, tup, avgstdev, c1, c2=None):
-    import itertools
+
 
     if c2 != None:
         u_ij = (c1 + c2) / 2
@@ -268,7 +266,6 @@ def density(data, tup, avgstdev, c1, c2=None):
     return sum_density
 
 def avg_stdev(data, clusters):
-    import itertools
     from statistics import stdev
 
     sum_stdev = 0
@@ -285,6 +282,90 @@ def avg_stdev(data, clusters):
 
     return sum_stdev / len(clusters)
 
+def db_improved(clusters, data, k):
+    '''
+    This index is obtained by averaging all cluster similarities. A smaller value indicates a better clustering.
+    '''
+
+    n_c = len(clusters)
+    centroids = cluster_centroids(clusters, data)
+    sum_of_similarities = 0
+    for i, cluster in enumerate(clusters):
+        array_of_similarities = []
+        distance_centroids = []
+        s_i = similarity(cluster, data, centroids[i])
+        for j, clusterJ in enumerate(clusters):
+            if j != i:
+                s_j = similarity(clusters[j], data, centroids[j])
+                array_of_similarities.append(s_i + s_j)
+                distance_centroids.append(abs(centroids[i]-centroids[j]))
+
+        sum_of_similarities += (max(array_of_similarities) / min(distance_centroids))
+
+    return sum_of_similarities / n_c
+
+def similarity(cluster, data, centroid):
+
+    pairs_in_cluster = list(itertools.combinations(cluster, 2))
+    result = 0
+    for tup in pairs_in_cluster:
+        if tup not in data.keys():
+            tup = (tup[1], tup[0])
+        result += abs(float(data[tup]) - centroid)
+
+    return result / len(pairs_in_cluster)
+
+def silhouette(clusters, data, k):
+    '''
+     Validates the clustering performance based on the pairwise difference of between and within cluster distances.
+     The optimal cluster number is determined by maximizing the value of this index.
+
+    :param clusters:
+    :param data:
+    :param k:
+    :return:
+    '''
+
+    n_c = len(clusters)
+    sum_clusters_diff = 0
+    for cluster in clusters:
+        sum_pairwise = 0
+        for el in cluster:
+            b = silhouette_b([x for x in clusters if x != cluster], el, data)
+            a = silhouette_a(cluster, el, data)
+            sum_pairwise += (b - a) / max(a,b)
+        sum_clusters_diff += sum_pairwise / len(cluster)
+
+    return sum_clusters_diff / n_c
+
+
+def silhouette_a(cluster, el, data):
+    n_i = len(cluster)
+    sum_dist = 0
+    for c_i in cluster:
+        if c_i == el:
+            continue
+        pair = (el, c_i)
+        if pair not in data.keys():
+            pair = (pair[1], pair[0])
+        sum_dist += float(data[pair])
+
+    return sum_dist / (n_i - 1)
+
+def silhouette_b(clusters, el, data):
+    array_of_between_clusters = []
+    for cluster in clusters:
+        sum_dist_within = 0
+        n_j = len(cluster)
+        for c_j in cluster:
+            pair = (el, c_j)
+            if pair not in data.keys():
+                pair = (pair[1], pair[0])
+            sum_dist_within += float(data[pair])
+        array_of_between_clusters.append(sum_dist_within / n_j)
+
+    return min(array_of_between_clusters)
+
 
 if __name__ == '__main__':
     from collections import defaultdict
@@ -295,7 +376,7 @@ if __name__ == '__main__':
     import itertools
 
     dicio_statistics = defaultdict()
-    indexes = ('CVNN', 'XB**', 'S_Dbw')
+    indexes = ('CVNN', 'XB**', 'S_Dbw', 'DB*', 'S')
     for index in indexes:
         dicio_statistics[index] = []
 
