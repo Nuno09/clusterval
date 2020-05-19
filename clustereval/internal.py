@@ -6,7 +6,7 @@ import  itertools
 from collections import defaultdict
 import math
 
-def calculate_internal(data, clusters, k):
+def calculate_internal(data, clusters, k, c_max=None):
     import pandas as pd
     import csv
 
@@ -58,18 +58,21 @@ def calculate_internal(data, clusters, k):
     cvnn_idx = cvnn(clusters, distance_dict, k)
 
     #XB**
-    xb = xb_improved(clusters, distance_dict, k)
+    xb = xb_improved(clusters, distance_dict)
 
     #S_Bbw
-    sdbw = s_dbw(clusters, distance_dict, k)
+    sdbw = s_dbw(clusters, distance_dict)
 
     #DB**
-    db = db_improved(clusters, distance_dict, k)
+    db = db_improved(clusters, distance_dict)
 
     #S
-    s = silhouette(clusters, distance_dict, k)
+    s = silhouette(clusters, distance_dict)
 
-    return {'CVNN': cvnn_idx, 'XB**': xb, 'S_Dbw': sdbw, 'DB*': db, 'S': s}
+    #SD
+    sd = sd_index(clusters, distance_dict, c_max)
+
+    return {'CVNN': cvnn_idx, 'XB**': xb, 'S_Dbw': sdbw, 'DB*': db, 'S': s, 'SD': sd}
 
 
 def cvnn(clusters, data, k):
@@ -128,7 +131,7 @@ def pairwise_distance(pairs, data):
 
     return sum_of_distances
 
-def xb_improved(clusters, data, k):
+def xb_improved(clusters, data):
     '''
     The Xie-Beni improved index (XB**) defines the intercluster separation as the minimum square distance between
     cluster centers, and the intracluster compactness as the maximum square distance between each data object and its
@@ -179,7 +182,7 @@ def cluster_centroids(clusters, data):
 
     return cluster_centroids_lst
 
-def s_dbw(clusters, data, k):
+def s_dbw(clusters, data):
     '''
     The S Dbw index (S Dbw) takes density into account to measure the intercluster separation.
     The basic idea is that for each pair of cluster centers, at least one of their densities should be larger
@@ -199,12 +202,11 @@ def s_dbw(clusters, data, k):
 def scat(clusters, data):
     from statistics import variance
 
-
+    centroids = cluster_centroids(clusters, data)
     sum_variances = 0
     variance_d = variance(float(el) for key, el in data.items())
-    variance_d = math.sqrt(variance_d*variance_d)
     n_c = len(clusters)
-    for cluster in clusters:
+    for ci, cluster in enumerate(clusters):
         if len(cluster) < 3:
             continue
         variance_list = []
@@ -213,9 +215,9 @@ def scat(clusters, data):
             if pair not in data.keys():
                 pair = (pair[1], pair[0])
             variance_list.append(float(data[pair]))
-        variance_i = variance(variance_list)
+        variance_i = variance(variance_list, centroids[ci])
 
-        sum_variances += math.sqrt(variance_i*variance_i) / variance_d
+        sum_variances += variance_i / variance_d
 
     return sum_variances / n_c
 
@@ -282,7 +284,7 @@ def avg_stdev(data, clusters):
 
     return sum_stdev / len(clusters)
 
-def db_improved(clusters, data, k):
+def db_improved(clusters, data):
     '''
     This index is obtained by averaging all cluster similarities. A smaller value indicates a better clustering.
     '''
@@ -315,7 +317,7 @@ def similarity(cluster, data, centroid):
 
     return result / len(pairs_in_cluster)
 
-def silhouette(clusters, data, k):
+def silhouette(clusters, data):
     '''
      Validates the clustering performance based on the pairwise difference of between and within cluster distances.
      The optimal cluster number is determined by maximizing the value of this index.
@@ -367,6 +369,42 @@ def silhouette_b(clusters, el, data):
     return min(array_of_between_clusters)
 
 
+def sd_index(clusters, data, c_max):
+    '''
+    Based on the concepts of average scattering, which indicates the compactness between clusters
+    and the total separation of clusters, which indicates the separation between the items of a cluster.
+    The optimal cluster number is determined by minimizing the value of this index.
+    :param clusters:
+    :param data:
+    :param k:
+    :return:
+    '''
+
+    centroids = cluster_centroids(clusters, data)
+    return dis(centroids) + scat(clusters, data)*dis(cluster_centroids(c_max, data))
+
+
+def dis(centroids):
+
+    d_max = 0
+    d_min = math.inf
+    total = 0
+    for i in range(len(centroids)):
+        total_i = 0
+        for j in range(len(centroids)):
+            if i != j:
+                d = abs(centroids[i] - centroids[j])
+                total_i +=  d
+                if d > d_max:
+                    d_max = d
+                if d < d_min:
+                    d_min = d
+
+        total += 1 / total_i
+
+    return (d_max / d_min) * total
+
+
 if __name__ == '__main__':
     from collections import defaultdict
     from tabulate import tabulate
@@ -376,7 +414,7 @@ if __name__ == '__main__':
     import itertools
 
     dicio_statistics = defaultdict()
-    indexes = ('CVNN', 'XB**', 'S_Dbw', 'DB*', 'S')
+    indexes = ('CVNN', 'XB**', 'S_Dbw', 'DB*', 'S', 'SD')
     for index in indexes:
         dicio_statistics[index] = []
 
@@ -384,6 +422,9 @@ if __name__ == '__main__':
     k = 2
     clusters = [['0', '1', '2', '3', '17', '5', '6', '7', '8', '9', '11', '14', '18', '20', '21', '22', '23'],
                ['10', '12', '13', '15', '16', '4', '19'], ['24', '25', '26', '27', '28', '29']]
+
+    clusters_max = [['0', '1', '2', '3', '17', '5', '6'], ['7', '8', '9', '11', '14', '18'], ['20', '21', '22', '23',
+               '10', '12', '13'], ['15', '16', '4', '19','24', '25'], ['26', '27', '28', '29']]
 
     #create list and dictionary out of csv
     with open(file, 'r') as csv_file:
@@ -403,7 +444,7 @@ if __name__ == '__main__':
     #create dataframe out of csv
     df = pd.DataFrame(lst, columns=['patient1', 'patient2', 'score'])
 
-    metrics = calculate_internal(df, clusters, k)
+    metrics = calculate_internal(df, clusters, k, c_max=clusters_max)
     # print(computed_indexes)
     for index in indexes:
         dicio_statistics[index].append(metrics[index])
