@@ -84,7 +84,6 @@ def cvnn(clusters, data, k):
 
     """
 
-
     dict_clusters = {i: clusters[i] for i in range(len(clusters))}
     separation = []
     compactness = 0
@@ -94,7 +93,10 @@ def cvnn(clusters, data, k):
         #intracluster compactness
         pairs = list(itertools.combinations(cluster, 2))
         distance_i = pairwise_distance(pairs, data)
-        compactness += (2 / (n_i*(n_i - 1))) * distance_i
+        if distance_i == 0:
+            compactness = 0
+        else:
+            compactness += (2 / (n_i*(n_i - 1))) * distance_i
 
         #intercluster separation
         sum_of_weights = 0
@@ -158,27 +160,39 @@ def xb_improved(clusters, data):
             sum_distances_k += dist2 / n_k
         max_dist_elements.append(sum_distances_k)
 
-    for d in list(itertools.combinations(centroids, 2)):
-        dist_c = math.sqrt(math.pow((d[0] - d[1]), 2))
-        min_dist_clusters.append(dist_c)
+    if len(centroids) == 1:
+        min_dist_clusters.append(0)
+        max_diff_clusters.append(0)
+    else:
+        for d in list(itertools.combinations(centroids, 2)):
+            dist_c = math.sqrt(math.pow((d[0] - d[1]), 2))
+            min_dist_clusters.append(dist_c)
 
-    return (max(max_dist_elements) + max(max_diff_clusters)) / min(min_dist_clusters)
+    if min(min_dist_clusters) == 0:
+        min_dis = 1
+    else:
+        min_dis = min(min_dist_clusters)
+
+    return (max(max_dist_elements) + max(max_diff_clusters)) / min_dis
 
 
 
 def cluster_centroids(clusters, data):
 
-
     cluster_centroids_lst = []
     for cluster in clusters:
+        if len(cluster) == 1:
+            cluster_centroids_lst.append(0)
+            continue
         sum_of_scores = 0
         pairs = list(itertools.combinations(cluster, 2))
-        for pair in pairs:
-            if pair not in data.keys():
-                pair = (pair[1], pair[0])
-            sum_of_scores += float(data[pair])
+        if pairs:
+            for pair in pairs:
+                if pair not in data.keys():
+                    pair = (pair[1], pair[0])
+                sum_of_scores += float(data[pair])
 
-        cluster_centroids_lst.append(sum_of_scores / len(pairs))
+            cluster_centroids_lst.append(sum_of_scores / len(pairs))
 
     return cluster_centroids_lst
 
@@ -288,21 +302,36 @@ def db_improved(clusters, data):
     '''
     This index is obtained by averaging all cluster similarities. A smaller value indicates a better clustering.
     '''
-
     n_c = len(clusters)
+    with open('../data.txt', 'w+') as dfile:
+        for key, value in data.items():
+            s = '%s: %s'%(key, value)
+            dfile.write(s)
+
     centroids = cluster_centroids(clusters, data)
     sum_of_similarities = 0
     for i, cluster in enumerate(clusters):
         array_of_similarities = []
         distance_centroids = []
-        s_i = similarity(cluster, data, centroids[i])
+        if len(cluster) == 1:
+            s_i = 0
+        else:
+            s_i = similarity(cluster, data, centroids[i])
         for j, clusterJ in enumerate(clusters):
             if j != i:
-                s_j = similarity(clusters[j], data, centroids[j])
+                if len(clusterJ) == 1:
+                    s_j = 0
+                else:
+                    s_j = similarity(clusterJ, data, centroids[j])
                 array_of_similarities.append(s_i + s_j)
                 distance_centroids.append(abs(centroids[i]-centroids[j]))
-
-        sum_of_similarities += (max(array_of_similarities) / min(distance_centroids))
+        if len(centroids) == 1:
+            distance_centroids.append(0)
+            array_of_similarities.append(0)
+        min_dst_centroids = min(distance_centroids)
+        if min_dst_centroids == 0:
+            min_dst_centroids = 1
+        sum_of_similarities += (max(array_of_similarities) / min_dst_centroids)
 
     return sum_of_similarities / n_c
 
@@ -335,7 +364,10 @@ def silhouette(clusters, data):
         for el in cluster:
             b = silhouette_b([x for x in clusters if x != cluster], el, data)
             a = silhouette_a(cluster, el, data)
-            sum_pairwise += (b - a) / max(a,b)
+            if max(a,b) == 0:
+                sum_pairwise += (b - a)
+            else:
+                sum_pairwise += (b - a) / max(a,b)
         sum_clusters_diff += sum_pairwise / len(cluster)
 
     return sum_clusters_diff / n_c
@@ -351,11 +383,17 @@ def silhouette_a(cluster, el, data):
         if pair not in data.keys():
             pair = (pair[1], pair[0])
         sum_dist += float(data[pair])
+    if n_i == 1:
+        result = sum_dist
+    else:
+        result = sum_dist / (n_i - 1)
 
-    return sum_dist / (n_i - 1)
+    return result
 
 def silhouette_b(clusters, el, data):
     array_of_between_clusters = []
+    if len(clusters) == 0:
+        array_of_between_clusters.append(0)
     for cluster in clusters:
         sum_dist_within = 0
         n_j = len(cluster)
@@ -379,13 +417,11 @@ def sd_index(clusters, data, c_max):
     :param k:
     :return:
     '''
-
     centroids = cluster_centroids(clusters, data)
     return dis(centroids) + scat(clusters, data)*dis(cluster_centroids(c_max, data))
 
 
 def dis(centroids):
-
     d_max = 0
     d_min = math.inf
     total = 0
@@ -393,15 +429,16 @@ def dis(centroids):
         total_i = 0
         for j in range(len(centroids)):
             if i != j:
-                d = abs(centroids[i] - centroids[j])
-                total_i +=  d
-                if d > d_max:
-                    d_max = d
-                if d < d_min:
-                    d_min = d
-
-        total += 1 / total_i
-
+                dst = abs(centroids[i] - centroids[j])
+                total_i += dst
+                if dst > d_max:
+                    d_max = dst
+                if dst < d_min:
+                    d_min = dst
+        if total_i > 0:
+            total += 1 / total_i
+    if d_min == 0:
+        d_min = 1
     return (d_max / d_min) * total
 
 
@@ -450,3 +487,5 @@ if __name__ == '__main__':
         dicio_statistics[index].append(metrics[index])
 
     print(tabulate([list(dicio_statistics.values())], headers=list(dicio_statistics.keys())))
+
+

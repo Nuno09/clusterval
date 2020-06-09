@@ -37,7 +37,6 @@ def calculate_external(partition_a, partition_b):
     for i in range(0, R):
         for j in range(0, C):
             a = a + ct[i][j] * (ct[i][j] - 1)
-
     a = a / 2
     # computing the number of pair in the same cluster in partition A but in different cluster in partition B
     b = (sum_R_squared - sum_all_squared) / 2
@@ -99,10 +98,16 @@ def calculate_external(partition_a, partition_b):
     #Huberts statistics norrmalized
     aux_hub1 = (a+b)*(a+c)
     aux_hub2 = (a+b)*(a+c)*(d+b)*(d+c)
-    hub_normalized = (M*a - aux_hub1) / (math.sqrt(aux_hub2))
+    if aux_hub2 == 0:
+        hub_normalized = 0
+    else:
+        hub_normalized = (M*a - aux_hub1) / (math.sqrt(aux_hub2))
 
     #F-Measure
-    f_measure = 2*a / (2*a + b + c)
+    if a + b + c == 0:
+        f_measure = 0
+    else:
+        f_measure = 2*a / (2*a + b + c)
 
     #Variation of information - lower value is better
     mutual_info = 0
@@ -169,9 +174,5 @@ if __name__ == '__main__':
     for k,v in dicio_statistics.items():
         dicio_statistics[k] = mean(v)
 
-
     print(tabulate([list(dicio_statistics.values())], headers=list(dicio_statistics.keys())))
-
-
-
 
