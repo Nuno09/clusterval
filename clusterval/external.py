@@ -140,7 +140,8 @@ def calculate_external(partition_a, partition_b):
     else:
         MS = math.sqrt(b + c + 2 * a) / math.sqrt(c)
 
-    return [rand_index, adjusted_rand_index, FM, jaccard, adjusted_wallace, van_dongen, hubert, hub_normalized, f_measure, VI, MS]
+    return {'R': rand_index, 'AR': adjusted_rand_index, 'FM': FM, 'J': jaccard, 'AW': adjusted_wallace, 'VD': van_dongen,
+            'H': hubert, 'H\'': hub_normalized, 'F': f_measure, 'VI': VI, 'MS': MS}
 
 
 if __name__ == '__main__':
