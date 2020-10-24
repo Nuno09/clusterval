@@ -1,4 +1,5 @@
 numpy
+pandas
+scipy
 sklearn
-tabulate
-graphviz
+matplotlib

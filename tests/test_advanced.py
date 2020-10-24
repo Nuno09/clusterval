@@ -1,16 +1,10 @@
 # -*- coding: utf-8 -*-
+from context import clusterval
+from sklearn.datasets import load_iris
 
-from .context import validclust
-
-import unittest
-
-
-class AdvancedTestSuite(unittest.TestCase):
-    """Advanced test cases."""
-
-    def test_thoughts(self):
-        self.assertIsNone(validclust.hmm())
+data = load_iris()['data']
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_basic_run():
+    val = clusterval.evaluate(list(data)
+    assert val

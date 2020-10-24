@@ -6,54 +6,29 @@ import  itertools
 from collections import defaultdict
 import math
 
-def calculate_internal(distance_dict, clusters, c_max=None, index=None):
+def calculate_internal(distance_dict, clustering, indices=['all']):
+    """
 
+    :param distance_dict: dictionary with distance between pairs
+    :param clustering: disctionary with clustering results for a range of k number of clusters
+    :param index: str, which index to calculate
+    :return: dictionary with indices values for a range of k number of clusters
+    """
+    indices_funcs = {'CVNN': cvnn, 'XB*': xb_improved, 'S_Dbw': s_dbw, 'DB*': db_improved, 'S': silhouette, 'SD': sd}
+    results = defaultdict()
 
-    if index != None:
-        #if index == 'CVNN':
-         #   return {'CVNN': cvnn(clusters, distance_dict, k)}
-        if index == 'XB*':
-            return {'XB*': xb_improved(clusters, distance_dict)}
-        elif index == 'S_Dbw':
-            return {'S_Dbw': s_dbw(clusters, distance_dict)}
-        elif index == 'DB*':
-            return {'DB*': db_improved(clusters, distance_dict)}
-        elif index == 'S':
-            return {'S': silhouette(clusters, distance_dict)}
-        elif index == 'SD':
-            if c_max == None:
-                raise ValueError('c_max argument missing')
-            else:
-                return {'SD': sd_index(clusters, distance_dict, c_max)}
+    for index in indices:
+        if index == 'all' or index == 'internal':
+            for cvi, func in indices_funcs.items():
+                results[cvi] = func(clustering, distance_dict)
+        elif index in indices_funcs.keys():
+            results[index] = indices_funcs[index](clustering, distance_dict)
+
         else:
-            raise ValueError('Please choose a valid index to calculate: \'CVNN\', \'XB*\', \'S_DBW\', \'DB*\', \'S\', \'SD\'')
+            raise ValueError('Please choose a valid index to calculate: \'CVNN\', \'XB*\', \'S_DBW\', \'DB*\', \'S\', '
+                             '\'SD\', \'internal\', \'all\'')
 
-    else:
-
-        #cvnn_idx = cvnn(clusters, distance_dict, data_quantity)
-
-        #XB**
-        xb = xb_improved(clusters, distance_dict)
-
-        #S_Bbw
-        sdbw = s_dbw(clusters, distance_dict)
-
-        #DB**
-        db = db_improved(clusters, distance_dict)
-
-        #S
-        s = silhouette(clusters, distance_dict)
-
-        # SD
-        if c_max != None:
-            sd = sd_index(clusters, distance_dict, c_max)
-            #result = {'CVNN': cvnn_idx, 'XB**': xb, 'S_Dbw': sdbw, 'DB*': db, 'S': s, 'SD': sd}
-            result = {'XB*': xb, 'S_Dbw': sdbw, 'DB*': db, 'S': s, 'SD': sd}
-        else:
-            #result = {'CVNN': cvnn_idx, 'XB**': xb, 'S_Dbw': sdbw, 'DB*': db, 'S': s}
-            result = {'XB*': xb, 'S_Dbw': sdbw, 'DB*': db, 'S': s}
-
-        return result
+    return results
 
 
 def cvnn(clusters, data):
@@ -117,6 +92,10 @@ def cvnn(clusters, data):
     maxsep = max(sep.values())
 
 
+    if maxcomp == 0 or maxsep == 0:
+        maxcomp = 1
+        maxsep = 1
+
     comp_final = {key: value / maxcomp for key, value in comp.items()}
     sep_final = {key: value / maxsep for key, value in sep.items()}
 
@@ -144,7 +123,7 @@ def pairwise_distance(pairs, data):
 
     return sum_of_distances
 
-def xb_improved(clusters, data): #BIB: New indices for cluster validity assessment - Kim
+def xb_improved(clustering, data): #BIB: New indices for cluster validity assessment - Kim
     '''
     The Xie-Beni improved index (XB*) defines the intercluster separation as the minimum square distance between
     cluster centers, and the intracluster compactness as the maximum square distance between each data object and its
@@ -155,34 +134,36 @@ def xb_improved(clusters, data): #BIB: New indices for cluster validity assessme
     :return: Xie Beni improved index.
     '''
 
+    xb_improved_index = defaultdict(float)
+    for k, clusters in clustering.items():
+        centroids = cluster_centroids(clusters, data)
+        max_dist_elements = []
+        min_dist_clusters = []
+        for i, cluster in enumerate(clusters):
+            sum_distances_k = 0
+            n_k = len(cluster)
+            if n_k != 0:
+                for key, el in data.items():
+                    dist = float(el) - centroids[i]
+                    dist2 = math.sqrt(math.pow(dist, 2))
+                    sum_distances_k += dist2 / n_k
+                max_dist_elements.append(sum_distances_k)
 
-    centroids = cluster_centroids(clusters, data)
-    max_dist_elements = []
-    min_dist_clusters = []
+        if len(centroids) == 1:
+            min_dist_clusters.append(0)
+        else:
+            for d in list(itertools.combinations(centroids, 2)):
+                dist_c = math.sqrt(math.pow((d[0] - d[1]), 2))
+                min_dist_clusters.append(dist_c)
 
-    for i, cluster in enumerate(clusters):
-        sum_distances_k = 0
-        n_k = len(cluster)
-        if n_k != 0:
-            for key, el in data.items():
-                dist = float(el) - centroids[i]
-                dist2 = math.sqrt(math.pow(dist, 2))
-                sum_distances_k += dist2 / n_k
-            max_dist_elements.append(sum_distances_k)
+        if min(min_dist_clusters) == 0:
+            min_dis = 1
+        else:
+            min_dis = min(min_dist_clusters)
 
-    if len(centroids) == 1:
-        min_dist_clusters.append(0)
-    else:
-        for d in list(itertools.combinations(centroids, 2)):
-            dist_c = math.sqrt(math.pow((d[0] - d[1]), 2))
-            min_dist_clusters.append(dist_c)
+        xb_improved_index[k] = max(max_dist_elements) / min_dis
 
-    if min(min_dist_clusters) == 0:
-        min_dis = 1
-    else:
-        min_dis = min(min_dist_clusters)
-
-    return max(max_dist_elements) / min_dis
+    return xb_improved_index
 
 
 
@@ -205,7 +186,7 @@ def cluster_centroids(clusters, data):
 
     return cluster_centroids_lst
 
-def s_dbw(clusters, data):
+def s_dbw(clustering, data):
     '''
     The S Dbw index (S Dbw) takes density into account to measure the intercluster separation.
     The basic idea is that for each pair of cluster centers, at least one of their densities should be larger
@@ -219,7 +200,11 @@ def s_dbw(clusters, data):
     :return: S_Dbw index.
     '''
 
-    return scat(clusters, data) + dens_bw(clusters, data)
+    s_dbw_index = defaultdict(float)
+    for k, clusters in clustering.items():
+        s_dbw_index[k] = scat(clusters, data) + dens_bw(clusters, data)
+
+    return s_dbw_index
 
 def scat(clusters, data):
     #scat improved from BIB: New indices for cluster validity assessment - Kim
@@ -313,7 +298,7 @@ def avg_stdev(data, clusters):
 
     return sum_stdev / len(clusters)
 
-def db_improved(clusters, data):
+def db_improved(clustering, data):
     '''
     This index is obtained by averaging all cluster similarities. A smaller value indicates a better clustering.
 
@@ -321,34 +306,39 @@ def db_improved(clusters, data):
     :param data: Dataset represented as a distance matrix.
     :return: Davies-Bouldin improved index.
     '''
-    n_c = len(clusters)
-    
-    centroids = cluster_centroids(clusters, data)
-    sum_of_similarities = 0
-    for i, cluster in enumerate(clusters):
-        array_of_similarities = []
-        distance_centroids = []
-        if len(cluster) == 1:
-            s_i = 0
-        else:
-            s_i = similarity(cluster, data, centroids[i])
-        for j, clusterJ in enumerate(clusters):
-            if j != i:
-                if len(clusterJ) == 1:
-                    s_j = 0
-                else:
-                    s_j = similarity(clusterJ, data, centroids[j])
-                array_of_similarities.append(s_i + s_j)
-                distance_centroids.append(abs(centroids[i]-centroids[j]))
-        if len(centroids) == 1:
-            distance_centroids.append(0)
-            array_of_similarities.append(0)
-        min_dst_centroids = min(distance_centroids)
-        if min_dst_centroids == 0:
-            min_dst_centroids = 1
-        sum_of_similarities += (max(array_of_similarities) / min_dst_centroids)
 
-    return sum_of_similarities / n_c
+    db_improved_index = defaultdict(float)
+    for k, clusters in clustering.items():
+        n_c = len(clusters)
+
+        centroids = cluster_centroids(clusters, data)
+        sum_of_similarities = 0
+        for i, cluster in enumerate(clusters):
+            array_of_similarities = []
+            distance_centroids = []
+            if len(cluster) == 1:
+                s_i = 0
+            else:
+                s_i = similarity(cluster, data, centroids[i])
+            for j, clusterJ in enumerate(clusters):
+                if j != i:
+                    if len(clusterJ) == 1:
+                        s_j = 0
+                    else:
+                        s_j = similarity(clusterJ, data, centroids[j])
+                    array_of_similarities.append(s_i + s_j)
+                    distance_centroids.append(abs(centroids[i]-centroids[j]))
+            if len(centroids) == 1:
+                distance_centroids.append(0)
+                array_of_similarities.append(0)
+            min_dst_centroids = min(distance_centroids)
+            if min_dst_centroids == 0:
+                min_dst_centroids = 1
+            sum_of_similarities += (max(array_of_similarities) / min_dst_centroids)
+
+        db_improved_index[k] = sum_of_similarities / n_c
+
+    return db_improved_index
 
 def similarity(cluster, data, centroid):
     if len(cluster) == 0:
@@ -364,7 +354,7 @@ def similarity(cluster, data, centroid):
     
     return sim
 
-def silhouette(clusters, data):
+def silhouette(clustering, data):
     '''
      Validates the clustering performance based on the pairwise difference of between and within cluster distances.
      The optimal cluster number is determined by maximizing the value of this index.
@@ -374,21 +364,25 @@ def silhouette(clusters, data):
     :return: Silhouette improved index.
     '''
 
-    n_c = len(clusters)
-    sum_clusters_diff = 0
-    for i, cluster in enumerate(clusters):
-        if len(cluster) != 0:
-            sum_pairwise = 0
-            for el in cluster:
-                b = silhouette_b([x for y, x in enumerate(clusters) if i != y], el, data)
-                a = silhouette_a(cluster, el, data)
-                if max(a,b) == 0:
-                    sum_pairwise += (b - a)
-                else:
-                    sum_pairwise += (b - a) / max(a,b)
-            sum_clusters_diff += sum_pairwise / len(cluster)
+    silhouette_index = defaultdict(float)
+    for k, clusters in clustering.items():
+        n_c = len(clusters)
+        sum_clusters_diff = 0
+        for i, cluster in enumerate(clusters):
+            if len(cluster) != 0:
+                sum_pairwise = 0
+                for el in cluster:
+                    b = silhouette_b([x for y, x in enumerate(clusters) if i != y], el, data)
+                    a = silhouette_a(cluster, el, data)
+                    if max(a,b) == 0:
+                        sum_pairwise += (b - a)
+                    else:
+                        sum_pairwise += (b - a) / max(a,b)
+                sum_clusters_diff += sum_pairwise / len(cluster)
 
-    return sum_clusters_diff / n_c
+        silhouette_index[k] = sum_clusters_diff / n_c
+
+    return silhouette_index
 
 
 def silhouette_a(cluster, el, data):
@@ -428,7 +422,7 @@ def silhouette_b(clusters, el, data):
     return min(array_of_between_clusters)
 
 
-def sd_index(clusters, data, c_max):
+def sd(clustering, data):
     '''
     Based on the concepts of average scattering, which indicates the compactness between clusters
     and the total separation of clusters, which indicates the separation between the items of a cluster.
@@ -436,11 +430,19 @@ def sd_index(clusters, data, c_max):
 
     :param clusters: Clusters represented in List format.
     :param data: Dataset represented as a distance matrix.
-    :param c_max: Maximum number of input clusters.
     :return: Davies-Bouldin improved index.
     '''
-    centroids = cluster_centroids(clusters, data)
-    return dis(centroids) + scat(clusters, data)*dis(cluster_centroids(c_max, data))
+
+    sd_index = defaultdict(float)
+    for k, clusters in clustering.items():
+        centroids = cluster_centroids(clusters, data)
+
+        #Maximum number of input clusters.
+        c_max = clustering[list(clustering)[-1]]
+
+        sd_index[k] = dis(centroids) + scat(clusters, data)*dis(cluster_centroids(c_max, data))
+
+    return sd_index
 
 
 def dis(centroids):
@@ -463,66 +465,5 @@ def dis(centroids):
         d_min = 1
     return (d_max / d_min) * total
 
-
-if __name__ == '__main__':
-    from collections import defaultdict
-    from tabulate import tabulate
-    import math
-    import pandas as pd
-    import csv
-    import itertools
-
-    dicio_statistics = defaultdict()
-    indexes = ('CVNN', 'XB**', 'S_Dbw', 'DB*', 'S', 'SD')
-    for index in indexes:
-        dicio_statistics[index] = []
-
-    file = '/home/nuno/Documentos/IST/Tese/AliClu/Code/dataframe.csv'
-    k = 2
-    clusters = [['0', '1', '2', '3', '17', '5', '6', '7', '8', '9', '11', '14', '18', '20', '21', '22', '23'],
-               ['10', '12', '13', '15', '16', '4', '19'], ['24', '25', '26', '27', '28', '29']]
-
-    clusters_max = [['0', '1', '2', '3', '17', '5', '6'], ['7', '8', '9', '11', '14', '18'], ['20', '21', '22', '23',
-               '10', '12', '13'], ['15', '16', '4', '19','24', '25'], ['26', '27', '28', '29']]
-
-    #create list and dictionary out of csv
-    with open(file, 'r') as csv_file:
-        lst = []
-        d = defaultdict()
-        r = csv.reader(csv_file, delimiter=',')
-        next(r)
-        for row in r:
-            lst.append(row)
-            if int(row[0]) < int(row[1]):
-                d[(row[0], row[1])] = row[2]
-            else:
-                d[(row[1], row[0])] = row[2]
-
-
-
-    #create dataframe out of csv
-    df = pd.DataFrame(lst, columns=['patient1', 'patient2', 'score'])
-
-    #construct distance dictionary
-    distance_dict = defaultdict(dict)
-    fields = df.keys()
-    dict_aux = df.to_dict('index')
-    for key, value in dict_aux.items():
-        if int(value[fields[0]]) < int(value[fields[1]]):
-            v1 = value[fields[0]]
-            v2 = value[fields[1]]
-        else:
-            v2 = value[fields[0]]
-            v1 = value[fields[1]]
-        score = value[fields[2]]
-        distance_dict[(v1, v2)] = score
-
-
-    metrics = calculate_internal(distance_dict, clusters, k, c_max=clusters_max)
-    # print(computed_indexes)
-    for index in indexes:
-        dicio_statistics[index].append(metrics[index])
-
-    print(tabulate([list(dicio_statistics.values())], headers=list(dicio_statistics.keys())))
 
 

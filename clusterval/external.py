@@ -2,41 +2,42 @@
 Calculate external validation. Two partitions should be given.
 
 """
+import math
+import numpy as np
 
 
+def calculate_external(partition_a, partition_b, indices=['all']):
 
-def calculate_external(partition_a, partition_b):
-    import math
-    import numpy as np
+    from collections import defaultdict
 
     # size of contigency table
     R = len(partition_a)
     C = len(partition_b)
     # contigency table
-    ct = np.zeros((R + 1, C + 1))
+    contigency_table = np.zeros((R + 1, C + 1))
     # fill the contigency table
     for i in range(0, R + 1):
         for j in range(0, C):
             if i in range(0, R):
                 n_common_elements = len(set(partition_a[i]).intersection(partition_b[j]))
-                ct[i][j] = n_common_elements
+                contigency_table[i][j] = n_common_elements
             else:
-                ct[i][j] = ct[:, j].sum()
+                contigency_table[i][j] = contigency_table[:, j].sum()
 
-        ct[i][j + 1] = ct[i].sum()
+        contigency_table[i][j + 1] = contigency_table[i].sum()
 
-    N = ct[R][C]
+    N = contigency_table[R][C]
     # condensed information of ct into a mismatch matrix (pairwise agreement)
-    sum_all_squared = np.sum(ct[0:R][:, range(0, C)] ** 2)
-    sum_R_squared = np.sum(ct[0:R, C] ** 2)
-    sum_R = np.sum(ct[0:R, C])
-    sum_C_squared = np.sum(ct[R, 0:C] ** 2)
-    sum_C = np.sum(ct[R, 0:C])
+    sum_all_squared = np.sum(contigency_table[0:R][:, range(0, C)] ** 2)
+    sum_R_squared = np.sum(contigency_table[0:R, C] ** 2)
+    sum_R = np.sum(contigency_table[0:R, C])
+    sum_C_squared = np.sum(contigency_table[R, 0:C] ** 2)
+    sum_C = np.sum(contigency_table[R, 0:C])
     # computing the number of pairs that are in the same cluster both in partition A and partition B
     a = 0
     for i in range(0, R):
         for j in range(0, C):
-            a = a + ct[i][j] * (ct[i][j] - 1)
+            a = a + contigency_table[i][j] * (contigency_table[i][j] - 1)
     a = a / 2
     # computing the number of pair in the same cluster in partition A but in different cluster in partition B
     b = (sum_R_squared - sum_all_squared) / 2
@@ -46,11 +47,44 @@ def calculate_external(partition_a, partition_b):
     d = (N ** 2 + sum_all_squared - (sum_R_squared + sum_C_squared)) / 2
 
     M = (a + b + c + d)
-    #print(M)
-    # Rand Index
-    rand_index = (a + d) / (a + b + c + d)
 
-    # Adjusted Rand Index
+
+    indices_funcs = {'R': rand, 'AR': adjusted_rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
+            'VD': van_dongen, 'H': hubert, 'H\'': hubert_normalized, 'F': f_measure,
+            'VI': variation_information, 'MS': minkowski}
+    results = defaultdict()
+
+    for index in indices:
+        if index == 'all' or index == 'external':
+            for cvi, func in indices_funcs.items():
+                if cvi in ['AR', 'AW']:
+                    results[cvi] = func(a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N)
+                elif cvi in ['VD', 'VI']:
+                    results[cvi] = func(contigency_table, R, C, N)
+                else:
+                    results[cvi] = func(a, b, c, d, M)
+        elif index in indices_funcs.keys():
+            if index in ['AR', 'AW']:
+                results[index] = indices_funcs[index](a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N)
+            elif index in ['VD', 'VI']:
+                results[index] = indices_funcs[index](contigency_table, R, C, N)
+            else:
+                results[index] = indices_funcs[index](a, b, c, d, M)
+
+        else:
+            raise ValueError(
+                'Please choose a valid index to calculate: \'R\', \'AR*\', \'FM\', \'J*\', \'AW\', \'VD\', \'H\', \'H\'\''
+                '\'F\', \'VI\', \'MS\'')
+
+    return results
+
+
+
+
+def rand(a, b, c, d, M):
+    return (a + d) / (a + b + c + d)
+
+def adjusted_rand(a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N):
     nc = ((sum_R_squared - sum_R) * (sum_C_squared - sum_C)) / (2 * N * (N - 1))
     nd = (sum_R_squared - sum_R + sum_C_squared - sum_C) / 4
     if (nd == nc):
@@ -58,122 +92,104 @@ def calculate_external(partition_a, partition_b):
     else:
         adjusted_rand_index = (a - nc) / (nd - nc)
 
-    # Fowlks and Mallows
+    return adjusted_rand_index
+
+def fowlkes_mallows(a, b, c, d, M):
     if ((a + b) == 0 or (a + c) == 0):
         FM = 0
     else:
         FM = a / math.sqrt((a + b) * (a + c))
 
-    # Jaccard
+    return FM
+
+def jaccard(a, b, c, d, M):
     if (a + b + c == 0):
         jaccard = 1
     else:
         jaccard = a / (a + b + c)
 
-    # Adjusted Wallace
+    return jaccard
+
+def adjusted_wallace(a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N):
     if ((a + b) == 0):
         wallace = 0
     else:
         wallace = a / (a + b)
     SID_B = 1 - ((sum_C_squared - sum_C) / (N * (N - 1)))
     if ((SID_B) == 0):
-        adjusted_wallace = 0
+        adjusted_wallace_index = 0
     else:
-        adjusted_wallace = (wallace - (1 - SID_B)) / (1 - (1 - SID_B))
+        adjusted_wallace_index = (wallace - (1 - SID_B)) / (1 - (1 - SID_B))
 
-    # Van Dongen ------> low value is best
+    return adjusted_wallace_index
+
+def van_dongen(contigency_table, R, C, N):
     VD_i = 0
     VD_j = 0
 
     for i in range(0, R):
-        VD_i += max(ct[i, 0:C])
+        VD_i += max(contigency_table[i, 0:C])
     for j in range(0, C):
-        VD_j += max(ct[0:R, j])
+        VD_j += max(contigency_table[0:R, j])
 
-    van_dongen = ((2*N) - VD_i - VD_j) / (2*N)
+    van_dongen_index = ((2 * N) - VD_i - VD_j) / (2 * N)
 
-    #Huberts statistic
-    hubert = (M - 2*b - 2*c) / M
+    return van_dongen_index
 
-    #Huberts statistics norrmalized
-    aux_hub1 = (a+b)*(a+c)
-    aux_hub2 = (a+b)*(a+c)*(d+b)*(d+c)
+def hubert(a, b, c, d, M):
+    return (M - 2*b - 2*c) / M
+
+def hubert_normalized(a, b, c, d, M):
+
+    aux_hub1 = (a + b) * (a + c)
+    aux_hub2 = (a + b) * (a + c) * (d + b) * (d + c)
     if aux_hub2 == 0:
         hub_normalized = 0
     else:
-        hub_normalized = (M*a - aux_hub1) / (math.sqrt(aux_hub2))
+        hub_normalized = (M * a - aux_hub1) / (math.sqrt(aux_hub2))
 
-    #F-Measure
+    return hub_normalized
+
+def f_measure(a, b, c, d, M):
     if a + b + c == 0:
-        f_measure = 0
+        f_measure_index = 0
     else:
-        f_measure = 2*a / (2*a + b + c)
+        f_measure_index = 2 * a / (2 * a + b + c)
 
-    #Variation of information - lower value is better
+    return f_measure_index
+
+def variation_information(contigency_table, R, C, N):
     mutual_info = 0
     entropy_C = 0
     entropy_P = 0
     flag_entropy = 0
     for i in range(R):
         # calculation for entropy
-        p_i = ct[i][-1] / N
+        p_i = contigency_table[i][-1] / N
         if p_i != 0:
             entropy_C = entropy_C + (p_i * math.log2(p_i))
         for j in range(C):
             if flag_entropy == 0:
                 # calculation for entropy
-                p = ct[-1][j] / N
-                if p!= 0:
+                p = contigency_table[-1][j] / N
+                if p != 0:
                     entropy_P = entropy_P + (p * math.log2(p))
-            p_ij = ct[i][j] / N
-            p_j = ct[-1][j] / N
+            p_ij = contigency_table[i][j] / N
+            p_j = contigency_table[-1][j] / N
             if not 0 in [p_ij, p_i, p_j]:
-                mutual_info = mutual_info + (p_ij * math.log2(p_ij / (p_i*p_j)))
+                mutual_info = mutual_info + (p_ij * math.log2(p_ij / (p_i * p_j)))
         flag_entropy = 1
 
-    VI = -entropy_C - entropy_P - (2*mutual_info)
+    VI = -entropy_C - entropy_P - (2 * mutual_info)
 
-    #Minkowski
+    return VI
 
+def minkowski(a, b, c, d, M):
     if c == 0:
         MS = 0
     else:
         MS = math.sqrt(b + c + 2 * a) / math.sqrt(c)
 
-    return {'R': rand_index, 'AR': adjusted_rand_index, 'FM': FM, 'J': jaccard, 'AW': adjusted_wallace, 'VD': van_dongen,
-            'H': hubert, 'H\'': hub_normalized, 'F': f_measure, 'VI': VI, 'MS': MS}
+    return MS
 
-
-if __name__ == '__main__':
-    from sklearn.utils import resample
-    from collections import defaultdict
-    from statistics import mean
-    from tabulate import tabulate
-    import math
-
-    dicio_statistics = defaultdict(str)
-    indexes = ('rand', 'adjusted', 'FM', 'jaccard', 'adjusted_wallace', 'van_dongen', 'huberts', 'huberts_normalized', 'F-Measure', 'VI', 'Minkowski')
-
-    for index in indexes:
-        dicio_statistics[index] = []
-
-    data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
-    cluster = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],
-               [10, 12, 13, 15, 16, 17, 19]]
-
-
-    for i in range(50):
-        boot1 = resample(data, replace=False, n_samples=11)
-        boot2 = resample(data, replace=False, n_samples=18)
-        boot = [boot1, boot2]
-        computed_indexes = calculate_external(cluster, boot)
-
-        # print(computed_indexes)
-        for pos, index in enumerate(indexes):
-            dicio_statistics[index].append(computed_indexes[pos])
-
-    for k,v in dicio_statistics.items():
-        dicio_statistics[k] = mean(v)
-
-    print(tabulate([list(dicio_statistics.values())], headers=list(dicio_statistics.keys())))
 

@@ -1,378 +1,259 @@
 """
 Function evaluate does hierarchical clustering and validation of it's results.
-Validation can be done with external or internal indexes, or both.
+Validation can be done with external or internal indices, or both.
 
 
 """
 
 
-from scipy.cluster.hierarchy import dendrogram, linkage, cut_tree, fcluster, cophenet
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
 import random
-from clusterval.external import calculate_external
-from clusterval.internal import calculate_internal, cvnn
 from statistics import mean
+import pandas as pd
 import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-import csv
-import os
-import shutil
 
-external_indexes = ['R', 'AR', 'FM', 'J', 'AW', 'VD', 'H', 'H\'', 'F', 'VI', 'MS']
-internal_indexes = ['CVNN', 'XB*', 'S_Dbw', 'DB*', 'S', 'SD']
-min_indexes = ['VD', 'VI', 'MS', 'CVNN', 'XB*', 'S_Dbw', 'DB*', 'SD']
-indexes = ['R', 'AR', 'FM', 'J', 'AW', 'VD', 'H',
-           'H\'', 'F', 'VI', 'MS', 'CVNN', 'XB**', 'S_Dbw', 'DB*', 'S', 'SD']
-
-map_indexes = {'R': 'Rand', 'AR': 'Ajusted Rand', 'FM': 'Fowlkes & Mallows', 'J': 'Jaccard', 'AW': 'Adjusted Wallace',
-               'VD': 'Van Dongen', 'H': 'Huberts', 'H\'': 'Huberts Normalized', 'F': 'F-Measure',
-               'VI': 'Variation of Information', 'MS': 'Minkowski Score', 'CVNN': 'CVNN', 'XB*':'XB*',
-               'S_Dbw': 'S_Dbw', 'DB*': 'DB*', 'S':'S', 'SD':'SD', 'all':'all', 'external':'external', 'internal':'internal'}
+from internal import cvnn, xb_improved, s_dbw, db_improved, silhouette, sd, calculate_internal
+from external import calculate_external
 
 
+class Clusterval:
+    """
+    min_k: int, optional
+    minimum number of clusters to test. Default 2.
 
-def evaluate(data, min_k=2, max_k=8, link='ward',M=100, index='all'):
+    max_k: int, optional
+    maximum number of clusters to test. Default 8.
 
+    link: str, optional
+    linkage method to use. Accepts 'single', 'ward'(default), 'complete', 'centroid', 'average'
+
+    bootstrap_samples: int, optional
+    number of bootstrap samples simulated. Default 250
+
+    index: list of str or str, optional
+    what indices to be calculated. Accepts 'all' to calculate all, or one of [R', 'AR', 'FM', 'J', 'AW', 'VD', 'H',
+           'H\'', 'F', 'VI', 'MS', 'CVNN', 'XB**', 'S_Dbw', 'DB*', 'S', 'SD']. Default 'all'.
     """
 
-    :param data: A dataset, for now only doing lists
-    :param min_k: Minimum number of clusters. Default is 2
-    :param max_k: Maximum number of clusters. Default is 8.
-    :param method: Method to evaluate distance between data points, possible: wards, complete, single, average and
-    centroid
-    :param M: Number of bootstrap samples. Default is 100.
-    :param index: Allows to choose which indexes results you want to see.
-    :return: Table with validation indexes mean values for each k.
-    """
+    def __init__(self, min_k=2, max_k=8, link='ward', bootstrap_samples=250, index='all'):
+
+        external_indices = ['R', 'AR', 'FM', 'J', 'AW', 'VD', 'H', 'H\'', 'F', 'VI', 'MS']
+        internal_indices = ['CVNN', 'XB*', 'S_Dbw', 'DB*', 'S', 'SD']
+        min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB*', 'S_Dbw', 'DB*', 'SD']
+        indices = {'R': ['R'], 'AR': ['AR'], 'FM': ['FM'], 'J': ['J'], 'AW': ['AW'],
+                   'VD': ['VD'], 'H': ['H'], 'H\'': ['H\''], 'F': ['F'],
+                   'VI': ['VI'], 'MS': ['MS'], 'CVNN': ['CVNN'], 'XB*': ['XB*'],
+                   'S_Dbw': ['S_Dbw'], 'DB*': ['DB*'], 'S': ['S'], 'SD': ['SD'],
+                   'all': external_indices + internal_indices, 'external': external_indices,
+                   'internal': internal_indices}
+
+        if (index != 'all' or 'all' not in index) and (index not in indices):
+            raise ValueError('{0} is not a valid index value, please check help(clusterval) to see acceptables indices'.format(index))
+
+        if isinstance(index, str):
+            index = index.split(',')
+
+        self._external_indices = external_indices
+        self._internal_indices = internal_indices
+        self._min_indices = min_indices
+        self._indices = indices
+
+        self.min_k = min_k
+        self.max_k = max_k
+        self.link = link
+        self.bootstrap_samples = bootstrap_samples
+        self.index = index
+
+        self.results = None
+        self.final_k = None
+        self.count_choice = None
+        self.final_clusters = None
+
+        self.long_info = None
+
+    def __repr__(self):
+        args = ['{}={}'.format(' ' + key, value) for key,value in self.__dict__.items() if key not in ['results',
+                                                                                                       'external_indices',
+                                                                                                       'internal_indice',
+                                                                                                       'min_indices',
+                                                                                                       'indices']]
+        args = ','.join(args)
+        return 'Clusterval(' + str(args) + ')\n'
+
+    def __str__(self):
+        args = ['{} is {}'.format(' ' + key, value) for key, value in self.__dict__.items() if key not in ['results',
+                                                                                                       'external_indices',
+                                                                                                       'internal_indice',
+                                                                                                       'min_indices',
+                                                                                                       'indices']]
+        args = ';\n'.join(args)
+        return 'Clusterval: \n' + str(args) + '\n'
 
 
-    flag_external = 0
-    flag_internal = 0
+    def _get_index_func(self):
+        indices = {
+                    'R': [calculate_external], 'AR': [calculate_external], 'FM': [calculate_external],
+                    'J': [calculate_external], 'AW': [calculate_external], 'VD': [calculate_external],
+                    'H': [calculate_external], 'H\'': [calculate_external], 'F': [calculate_external],
+                    'VI': [calculate_external], 'MS': [calculate_external],
+                    'CVNN': [cvnn], 'XB*': [xb_improved], 'S_Dbw': [s_dbw], 'DB*': [db_improved], 'S': [silhouette],
+                    'SD': [sd],
+                    'all': [calculate_external, calculate_internal],
+                    'external': [calculate_external], 'internal': [calculate_internal]}
 
-    if index == 'all':
-        flag_external = 1
-        flag_internal = 1
+        return {i: indices[i] for i in self.index}
 
-    elif index == 'external' or index in external_indexes:
-        flag_external = 1
+    def _cluster_indices(self, cluster_assignments, idx):
+        import numpy as np
+        n = cluster_assignments.max()
+        clusters = []
+        for cluster_number in range(1, n + 1):
+            aux = np.where(cluster_assignments == cluster_number)[0].tolist()
+            if aux:
+                cluster = list(idx[i] for i in aux)
+                clusters.append(cluster)
+        return clusters
 
-    elif index == 'internal' or index in internal_indexes:
-        flag_internal = 1
+    def _distance_dict(self, data):
+        """
+        Calculate the accumulative distance considering all features, between each pair of observations
+        :param data:
+        :return:
+        """
 
+        from itertools import combinations
 
-    else:
-        raise ValueError(
-            "Provide index equal to one of: \n\'R\', \'AR\', \'FM\', \'J\', \'AW\', \'VD\', \'H\', \'H\\'\', \'F\',"
-            " \'VI\', \'MS\', \'CVNN\', \'XB**\', \'S_Dbw\', \'DB*\', \'S\', \'SD\', or choose \'external\', \'internal\' or \'all\' ")
+        comb = list(combinations([i for i in range(0, len(data))], 2))
+        dist_dict = defaultdict(float)
 
-    print('\n* Linkage criteria is: ' + link + '\n')
-    print('* Minimum number of clusters to test: ' + str(min_k) + '\n')
-    print('* Maximum number of clusters to test: ' + str(max_k) + '\n')
-    print('* Number of bootstrap samples generated: ' + str(M) + '\n')
+        for pair in comb:
+            dist = 0
+            for i, j in zip(data[pair[0]], data[pair[1]]):
+                dist += abs(float(i) - float(j))
+            dist_dict[pair] = dist
 
-    if (index in indexes) or (index == 'all'):
-      print('\n* Validation Indices calculated: ' + str(index) + '\n\n')
-    elif index == 'external':
-        print('\n* Validation Indices calculated: ' + str(external_indexes) + '\n\n')
+        return dist_dict
 
-    elif index == 'internal':
-        print('\n* Validation Indices calculated: ' + str(internal_indexes) + '\n\n')
+    def _choose(self, choices_dict):
 
-
-
-    results = {k: {} for k in range(min_k, max_k + 1)}
-    #copy of results dict is better, but was not working
-    mean_results_external = {k: [] for k in range(min_k, max_k + 1)}
-    mean_results_internal = {k: [] for k in range(min_k, max_k + 1)}
-    trees = defaultdict(dict)
-
-
-    #probably to many creations of the kind
-    for k in range(min_k, max_k + 1):
-        if (index in external_indexes) or (index in internal_indexes):
-            results[k][index] = []
-        elif index == 'external':
-            for i in external_indexes:
-                results[k][i] = []
-        elif index == 'internal':
-            for j in internal_indexes:
-                results[k][j] = []
-
-        else:
-            for i in external_indexes:
-                results[k][i] = []
-            for j in internal_indexes:
-                results[k][j] = []
-
-    Z = linkage(data, link)
-
-
-    for k in range(min_k, max_k + 1):
-
-
-        #map tree into the dataset
-        clusters = cluster_indices(fcluster(Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
-        trees[k] = clusters
-
-
-        if flag_external == 1:
-            #external validation step
-            for i in range(M):
-                sample = random.sample(data, int(3/4*len(data)))
-
-                Z_sample = linkage(sample, link)
-
-                clusters_sample = cluster_indices(fcluster(Z_sample, t=k, criterion='maxclust'), [i for i in range(0, len(sample))])
-                external = calculate_external(clusters, clusters_sample)
-
-                #in case there is only one metric to evaluate
-                if index in external_indexes:
-                    results[k][index].append(external[index])
+        for metrics in self.index:
+            for metric in self._indices[metrics]:
+                if metric in self._min_indices:
+                    value = self.output_df.loc[self.output_df[metric].idxmin()]
 
                 else:
-                     for key, metric in external.items():
-                        results[k][key].append(metric)
+                    value = self.output_df.loc[self.output_df[metric].idxmax()]
+                choices_dict[metric] = [value.name, value[metric]]
 
-    if flag_internal == 1:
-        distances = distance_dict(data)
-        #internal validation step
-        if index in internal_indexes:
-            if index == 'CVNN':
-                cvnn_index = cvnn(trees, distances)
-                for k in cvnn_index.keys():
-                    results[k][index].append(cvnn_index[k])
-            else:
-                for k, partition in trees.items():
-                    internal = calculate_internal(distances, partition, c_max=trees[max_k], index=index)
+        return choices_dict
 
-                results[k][index].append(internal[index])
-        else:
-            cvnn_index = cvnn(trees, distances)
-            for k in cvnn_index.keys():
-                results[k]['CVNN'].append(cvnn_index[k])
-            for k, partition in trees.items():
-                internal = calculate_internal(distances, partition, c_max=trees[max_k])
+    def evaluate(self, data):
+        """
+        Perform hierarchical clustering on the dataset and calculate the validation indices
+        :param data: array-like, n_samples x n_features
+        Dataset to cluster
+        :return: Clusterval object
+        """
 
-                for key, metric in internal.items():
-                    results[k][key].append(metric)
+        clustering = defaultdict(dict)
+        # dictionary with all mean values of the metrics for every k
+        choices_dict = defaultdict(list)
+        self.count_choice = defaultdict(int)
 
+        results = {k: {} for k in range(self.min_k, self.max_k + 1)}
+        # build dictionaries that hold the calculations
+        for k in range(self.min_k, self.max_k + 1):
+            for metrics in self.index:
+                for index in self._indices[metrics]:
+                    results[k][index] = []
 
-
-    for k, keys in results.items():
-        for key, value in keys.items():
-            if key in external_indexes:
-                mean_results_external[k].append(mean(value))
-
-            else:
-                mean_results_internal[k].append(value[0])
-
-    # dictionary with the choices of "best" k and the "best" value
-    choices_dict = defaultdict(list)
-
-
-    # dendrogram plot
-    if os.path.exists('../Results'):
-        shutil.rmtree('../Results')
-
-    try:
-        os.makedirs('../Results')
-    except OSError:
-        print('Error: Creating directory. ' + './Results')
-
-    filename_dn = '../Results/ClusteringDendrogram_' + str(link) + '_' + str(map_indexes[index]) + '.pdf'
-
-    with PdfPages(filename_dn) as pp:
-        fig = plt.figure(figsize=(40, 20))
-        plt.title('Hierarchical Clustering Dendrogram - Linkage: %s, Metrics: %s' % (link, map_indexes[index]), fontsize=30)
-        plt.xlabel('data point index', labelpad=20, fontsize=30)
-        plt.ylabel('distance', labelpad=10, fontsize=30)
-        plt.xticks(size=40)
-        plt.yticks(size=40)
-        dendrogram(
-
-            Z,
-            # truncate_mode = 'lastp',
-            # p=6,
-            leaf_rotation=90.,  # rotates the x axis labels
-            leaf_font_size=15.,  # font size for the x axis labels
+        funcs = self._get_index_func()
+        self.output_df = pd.DataFrame(
+            index=range(self.min_k, self.max_k+1),
+            columns=self._indices[self.index[0]],
+            dtype=np.float64
         )
 
-        #c, coph_dists = cophenet(Z, data)
-        #txt = 'Cophenetic Correlation Coefficient: ' + str(c)
-        #fig.text(0.1, 0.01, txt, fontsize=30)
-
-        pp.savefig(fig)
+        Z = linkage(data, self.link)
 
 
-    print("* Among all indices: \n")
+        for k in range(self.min_k, self.max_k + 1):
 
-    count_choice = defaultdict(int)
-    # table with all mean values of the metrics for every k
-    if flag_external == 1:
-        choices_dict = choose(choices_dict, mean_results_external, index, 'external')
+            # builds a list of the clusters
+            clusters = self._cluster_indices(fcluster(Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
+            # dictionary of clustering of each 'k', to be used in internal validation
+            clustering[k] = clusters
+            if (self.index[0] in ['all', 'external']) or (set(self.index).intersection(self._external_indices)):
 
-    if flag_internal == 1:
-        choices_dict = choose(choices_dict, mean_results_internal, index, 'internal')
+                # external validation step
+                for i in range(self.bootstrap_samples):
+                    sample = random.sample(list(data), int(3 / 4 * len(data)))
 
-    for values in choices_dict.values():
-        count_choice[str(values[0])] += 1
+                    Z_sample = linkage(sample, self.link)
 
-    for k_num in sorted(count_choice):
-        print('* ' + str(count_choice[k_num]) + ' proposed ' + k_num + ' as the best number of clusters \n')
+                    clusters_sample = self._cluster_indices(fcluster(Z_sample, t=k, criterion='maxclust'),
+                                                      [i for i in range(0, len(sample))])
+                    external = calculate_external(clusters, clusters_sample, indices=self.index)
 
-    print('\t\t\t***** Conclusion *****\t\t\t\n')
+                    for key, metric in external.items():
+                        if (key in self.index) or (self.index):
+                            results[k][key].append(metric)
 
-    max_value = 0
-    final_k = 0
-    for key, value in count_choice.items():
-        if value > max_value:
-            max_value = value
-            final_k = key
+        if (self.index[0] in ['all', 'internal']) or (set(self.index).intersection(self._internal_indices)):
+            # dictionary of distance between pairs of data points, e.g, {(pair1,pair2) : dist(pair1,pair2)}
+            distances = self._distance_dict(data)
+            # internal validation step
+            internal = calculate_internal(distances, clustering, indices=self.index)
+            for cvi, k_clust in internal.items():
+                for n_c, val in k_clust.items():
+                    results[n_c][cvi] = val
 
-    print('* According to the majority rule, the best number of clusters is ' + str(final_k) + '\n')
+        for k, keys in results.items():
+            for key, value in keys.items():
+                if key in self._external_indices:
+                    self.output_df.loc[k, key] = mean(value)
 
-    if flag_external == 1:
-        results_final_external = visualize(mean_results_external, index, 'external')
-        print('* External indices: \n')
-        print(results_final_external)
+                else:
+                    self.output_df.loc[k, key] = value
 
-    if flag_internal == 1:
-        results_final_internal = visualize(mean_results_internal, index, 'internal')
-        print('\n* Internal indices: \n')
-        print(results_final_internal)
+        choices_dict = self._choose(choices_dict)
+        for values in choices_dict.values():
+            self.count_choice[str(values[0])] += 1
 
-    print('\n* The best partition is:\n')
+        max_value = 0
+        final_k = 0
+        for key, value in self.count_choice.items():
+            if value > max_value:
+                max_value = value
+                final_k = key
+        self.final_k = final_k
+        self.final_clusters = fcluster(Z, t=final_k, criterion='maxclust')
+        self.long_info = self.print_results()
 
-    final_clusters = fcluster(Z, t=final_k, criterion='maxclust')
-    print(final_clusters)
+        return self
 
-    for nc in range(1, int(final_k) + 1):
-        filename_cluster = '../Results/Cluster' + str(nc)+ '.csv'
-        count = 0
-        with open(filename_cluster, mode='a+') as cluster_file:
-            csv_writer = csv.writer(cluster_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            for pos, el in enumerate(final_clusters):
-                if el == nc:
-                    count+=1
-                    csv_writer.writerow(data[pos])
-        os.rename(filename_cluster, '../Results/Cluster' + str(nc) + '_' + str(count) + 'elements.csv')
+    def print_results(self):
+        output_str = '\n* Linkage criteria is: ' + self.link + '\n'
+        output_str += '* Minimum number of clusters to test: ' + str(self.min_k) + '\n'
+        output_str += '* Maximum number of clusters to test: ' + str(self.max_k) + '\n'
+        output_str +='* Number of bootstrap samples generated: ' + str(self.bootstrap_samples) + '\n'
 
+        output_str +='\n* Validation Indices calculated: ' + str(self.index) + '\n\n'
 
+        output_str +="* Among all indices: \n\n"
 
-def cluster_indices(cluster_assignments,idx):
-    import numpy as np
-    n = cluster_assignments.max()
-    clusters = []
-    for cluster_number in range(1, n + 1):
-        aux = np.where(cluster_assignments == cluster_number)[0].tolist()
-        if aux:
-            cluster = list(idx[i] for i in aux)
-            clusters.append(cluster)
-    return clusters
+        output_str +='* According to the majority rule, the best number of clusters is ' + str(self.final_k) + '\n\n'
 
-def visualize(results, index, method):
-    from tabulate import tabulate
+        for k_num in sorted(self.count_choice):
+            output_str +='* ' + str(self.count_choice[k_num]) + ' proposed ' + k_num + ' as the best number of clusters \n\n'
 
-    if method == 'external':
-        head = external_indexes
-    else:
-        head = internal_indexes
+        output_str +='\t\t\t***** Conclusion *****\t\t\t\n'
 
-    if index in head:
-        vis = tabulate(results.values(), headers=[index], showindex=results.keys())
-    else:
-        vis = tabulate(results.values(), headers=head, showindex=results.keys())
+        output_str +=str(self.output_df) + '\n'
 
-    return vis
+        output_str +='\n* The best partition is:\n'
+        output_str +=str(self.final_clusters) + '\n'
 
-def choose(choices_dict, results, index, method):
-    import math
-
-    k_number = 0
-
-    if method == 'external':
-        metrics = external_indexes
-    else:
-        metrics = internal_indexes
-
-    #in case of only one metric
-    if (index in metrics):
-        if index in min_indexes:
-            min_value = math.inf
-            for k, v in results.items():
-                if v[0] < min_value:
-                    min_value = v[0]
-                    k_number = k
-            choices_dict[index] = [k_number, min_value]
-
-        else:
-            max_value = -math.inf
-            for k, v in results.items():
-                if v[0] > max_value:
-                    max_value = v[0]
-                    k_number = k
-            choices_dict[index] = [k_number, max_value]
-
-    else:
-
-        for pos, metric in enumerate(metrics):
-            if metric in min_indexes:
-                min_value = math.inf
-                for k,v in results.items():
-                    if v[pos] < min_value:
-                        min_value = v[pos]
-                        k_number = k
-                choices_dict[metric] = [k_number, min_value]
-
-            else:
-                max_value = -math.inf
-                for k,v in results.items():
-                    if v[pos] > max_value:
-                        max_value = v[pos]
-                        k_number = k
-                choices_dict[metric] = [k_number, max_value]
-
-
-
-    return choices_dict
-
-def distance_dict(data):
-    """
-    Calculate the accumulative distance considering all features, between each pair of observations
-    :param data:
-    :return:
-    """
-
-    from itertools import combinations
-
-    comb = list(combinations([i for i in range(0, len(data))], 2))
-    dist_dict = defaultdict(float)
-
-    for pair in comb:
-        dist = 0
-        for i, j in zip(data[pair[0]], data[pair[1]]):
-            dist += abs(float(i) - float(j))
-        dist_dict[pair] = dist
-
-    return dist_dict
-
-
-if __name__ == '__main__':
-
-    import csv
-
-    filename = "/home/nuno/Desktop/Iris.csv"
-
-    data = [[i] for i in [2, 8, 0, 4, 1, 9, 9, 0]]
-    k = 2
-
-    dataset = []
-
-    with open(filename, 'r') as file:
-        for line in csv.reader(file):
-            dataset.append(line[1:-1])
-
-    dataset = dataset[1:]
-
-    evaluate(dataset, link='single')
+        return output_str
