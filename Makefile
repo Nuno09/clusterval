@@ -8,7 +8,8 @@ upload-test:
 	twine upload --repository testpypi dist/*
 
 upload:
-	twine upload dist/*
+	python setup.py sdist
+	python3 -m twine upload dist/*
 
 init:
 	pip3 install -r requirements.txt

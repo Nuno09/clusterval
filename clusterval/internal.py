@@ -15,7 +15,10 @@ def calculate_internal(distance_dict, clustering, indices=['all']):
     :return: dictionary with indices values for a range of k number of clusters
     """
     indices_funcs = {'CVNN': cvnn, 'XB*': xb_improved, 'S_Dbw': s_dbw, 'DB*': db_improved, 'S': silhouette, 'SD': sd}
-    results = defaultdict()
+    results = defaultdict(dict)
+
+    if isinstance(indices, str):
+        indices = [x.strip() for x in indices.split(',')]
 
     for index in indices:
         if index == 'all' or index == 'internal':
@@ -24,14 +27,11 @@ def calculate_internal(distance_dict, clustering, indices=['all']):
         elif index in indices_funcs.keys():
             results[index] = indices_funcs[index](clustering, distance_dict)
 
-        else:
-            raise ValueError('Please choose a valid index to calculate: \'CVNN\', \'XB*\', \'S_DBW\', \'DB*\', \'S\', '
-                             '\'SD\', \'internal\', \'all\'')
 
     return results
 
 
-def cvnn(clusters, data):
+def cvnn(clustering, data):
 
     """
 
@@ -43,34 +43,24 @@ def cvnn(clusters, data):
     :return: CVNN index
     """
 
-    separation_dict = defaultdict(float)
-
 
     comp = defaultdict(float)
     sep = defaultdict(float)
     sum_of_objects = 0
 
-    for k, clustering in clusters.items():
+    for k, clusters in clustering.items():
         separation = []
         compactness = 0
-        for cluster in clustering:
+        for cluster in clusters:
             n_i = len(cluster)
             sum_of_objects += n_i * (n_i - 1)
             if n_i != 0:
                 #intracluster compactness
                 pairs = list(itertools.combinations(cluster, 2))
                 distance_i = pairwise_distance(pairs, data)
-                if distance_i == 0:
-                    compactness += 0
-                else:
-                    #compactness += (2 / (n_i*(n_i - 1))) * distance_i
+                if distance_i != 0:
                     compactness += distance_i #Method-Independent Indices for Cluster Validation and Estimating the Number of Clusters - chapter 26 Handbook of Cluster Analysis
 
-
-
-
-                # test with different kNNs, choose the one that gives the minimum
-                #for k in range(1, k):
 
                 # intercluster separation
                 sum_of_weights = 0
@@ -84,6 +74,10 @@ def cvnn(clusters, data):
                     sum_of_weights += count_nn / k
 
                 separation.append(sum_of_weights / n_i)
+            else:
+                sum_of_objects = 1
+                compactness += 10
+                separation.append(10)
 
         comp[k] = compactness / sum_of_objects
         sep[k] = max(separation)
@@ -107,7 +101,7 @@ def cvnn(clusters, data):
 def getknn(data, el, k):
     nn = []
     pairs = {key : value for key, value in data.items() if el in key}
-    for k_aux in range(1, k):
+    for k_aux in range(0, k):
         key_min = min(pairs.keys(), key=(lambda x: pairs[x]))
         nn.append(key_min)
         del pairs[key_min]
@@ -251,8 +245,8 @@ def dens_bw(clusters, data):
 
     for key,tup in pairs.items():
         dens_ij = density(data, tup, avg_std_deviation, centroids[key[0]], centroids[key[1]])
-        dens_i = density(data, tup[0], avg_std_deviation, centroids[key[0]])
-        dens_j = density(data, tup[0], avg_std_deviation, centroids[key[1]])
+        dens_i = density(data, tup, avg_std_deviation, centroids[key[0]])
+        dens_j = density(data, tup, avg_std_deviation, centroids[key[1]])
 
         if max(dens_i, dens_j) != 0:
             result_sum += (dens_ij / max(dens_i, dens_j))
@@ -267,9 +261,9 @@ def density(data, tup, avgstdev, c1, c2=None):
 
     if c2 != None:
         u_ij = (c1 + c2) / 2
-        tup = list(itertools.chain.from_iterable(tup))
     else:
         u_ij = c1
+    tup = list(itertools.chain.from_iterable(tup))
     sum_density = 0
     pairs_in_clusters = list(itertools.combinations(tup, 2))
     for pair in pairs_in_clusters:
@@ -435,6 +429,7 @@ def sd(clustering, data):
 
     sd_index = defaultdict(float)
     for k, clusters in clustering.items():
+
         centroids = cluster_centroids(clusters, data)
 
         #Maximum number of input clusters.
@@ -446,23 +441,20 @@ def sd(clustering, data):
 
 
 def dis(centroids):
-    d_max = 0
-    d_min = math.inf
-    total = 0
-    for i in range(len(centroids)):
-        total_i = 0
-        for j in range(len(centroids)):
-            if i != j:
-                dst = abs(centroids[i] - centroids[j])
-                total_i += dst
-                if dst > d_max:
-                    d_max = dst
-                if dst < d_min:
-                    d_min = dst
-        if total_i > 0:
-            total += 1 / total_i
-    if d_min == 0:
-        d_min = 1
+    '''
+    Total separation between clusters.
+    :param centroids: list
+    Clusters centroids
+    :return: float
+    '''
+    centroids_pairs = list(itertools.combinations(centroids, 2))
+    dist_lst = [abs(pair[0]-pair[1]) for pair in centroids_pairs]
+
+    d_max = max(dist_lst)
+    d_min = min(dist_lst)
+
+    total = sum(dist_lst)
+
     return (d_max / d_min) * total
 
 

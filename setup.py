@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 
 
 install_requires = [
-    'sklearn', 'scipy', 'numpy', 'pandas', 'matplotlib', 'tabulate'
+    'sklearn', 'scipy', 'numpy', 'pandas', 'matplotlib'
 ]
 
 with open('README.md') as f:
@@ -15,7 +15,7 @@ with open('README.md') as f:
 
 setup(
     name='clusterval',
-    version='0.1.5',
+    version='0.1.0',
     description='Package useful for clustering validation',
     long_description=long_description,
     long_description_content_type="text/markdown",

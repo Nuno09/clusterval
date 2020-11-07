@@ -14,8 +14,8 @@ import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
-from internal import cvnn, xb_improved, s_dbw, db_improved, silhouette, sd, calculate_internal
-from external import calculate_external
+from clusterval.internal import calculate_internal
+from clusterval.external import calculate_external
 
 
 class Clusterval:
@@ -49,11 +49,14 @@ class Clusterval:
                    'all': external_indices + internal_indices, 'external': external_indices,
                    'internal': internal_indices}
 
-        if (index != 'all' or 'all' not in index) and (index not in indices):
-            raise ValueError('{0} is not a valid index value, please check help(clusterval) to see acceptables indices'.format(index))
 
         if isinstance(index, str):
-            index = index.split(',')
+            index = [x.strip() for x in index.split(',')]
+
+        for idx in index:
+            if idx not in indices.keys():
+                raise ValueError('{0} is not a valid index value, please check help(clusterval.Clusterval) to see acceptables indices'.format(
+                    idx))
 
         self._external_indices = external_indices
         self._internal_indices = internal_indices
@@ -66,50 +69,60 @@ class Clusterval:
         self.bootstrap_samples = bootstrap_samples
         self.index = index
 
-        self.results = None
+        columns = [self._indices[i][0] for i in self.index]
+
+        self.output_df = pd.DataFrame(
+            index=range(self.min_k, self.max_k + 1),
+            columns=columns,
+            dtype=np.float64
+        )
         self.final_k = None
         self.count_choice = None
         self.final_clusters = None
+        self.Z= None
 
         self.long_info = None
 
     def __repr__(self):
-        args = ['{}={}'.format(' ' + key, value) for key,value in self.__dict__.items() if key not in ['results',
-                                                                                                       'external_indices',
-                                                                                                       'internal_indice',
-                                                                                                       'min_indices',
-                                                                                                       'indices']]
+        args = ['{}={}'.format(' ' + key, value) for key,value in self.__dict__.items() if key not in ['output_df',
+                                                                                                       '_external_indices',
+                                                                                                       '_internal_indice',
+                                                                                                       '_min_indices',
+                                                                                                       '_indices',
+                                                                                                       'final_k',
+                                                                                                       'count_choice',
+                                                                                                       'final_clusters',
+                                                                                                       'long_info',
+                                                                                                       'Z']]
         args = ','.join(args)
         return 'Clusterval(' + str(args) + ')\n'
 
     def __str__(self):
-        args = ['{} is {}'.format(' ' + key, value) for key, value in self.__dict__.items() if key not in ['results',
-                                                                                                       'external_indices',
-                                                                                                       'internal_indice',
-                                                                                                       'min_indices',
-                                                                                                       'indices']]
+        args = ['{} is {}'.format(' ' + key, value) for key, value in self.__dict__.items() if key not in ['output_df',
+                                                                                                       '_external_indices',
+                                                                                                       '_internal_indice',
+                                                                                                       '_min_indices',
+                                                                                                       '_indices',
+                                                                                                       'final_k',
+                                                                                                       'count_choice',
+                                                                                                       'final_clusters',
+                                                                                                        'long_info',
+                                                                                                           'Z']]
         args = ';\n'.join(args)
         return 'Clusterval: \n' + str(args) + '\n'
 
 
-    def _get_index_func(self):
-        indices = {
-                    'R': [calculate_external], 'AR': [calculate_external], 'FM': [calculate_external],
-                    'J': [calculate_external], 'AW': [calculate_external], 'VD': [calculate_external],
-                    'H': [calculate_external], 'H\'': [calculate_external], 'F': [calculate_external],
-                    'VI': [calculate_external], 'MS': [calculate_external],
-                    'CVNN': [cvnn], 'XB*': [xb_improved], 'S_Dbw': [s_dbw], 'DB*': [db_improved], 'S': [silhouette],
-                    'SD': [sd],
-                    'all': [calculate_external, calculate_internal],
-                    'external': [calculate_external], 'internal': [calculate_internal]}
-
-        return {i: indices[i] for i in self.index}
-
     def _cluster_indices(self, cluster_assignments, idx):
+        '''
+        Transform cluster memebership array into array of clusters
+        :param cluster_assignments: array
+        :param idx: array with indices
+        :return: array of clusters
+        '''
         import numpy as np
         n = cluster_assignments.max()
         clusters = []
-        for cluster_number in range(1, n + 1):
+        for cluster_number in range(0, n + 1):
             aux = np.where(cluster_assignments == cluster_number)[0].tolist()
             if aux:
                 cluster = list(idx[i] for i in aux)
@@ -119,8 +132,8 @@ class Clusterval:
     def _distance_dict(self, data):
         """
         Calculate the accumulative distance considering all features, between each pair of observations
-        :param data:
-        :return:
+        :param data: list
+        :return: dictionary of tuples
         """
 
         from itertools import combinations
@@ -169,20 +182,14 @@ class Clusterval:
                 for index in self._indices[metrics]:
                     results[k][index] = []
 
-        funcs = self._get_index_func()
-        self.output_df = pd.DataFrame(
-            index=range(self.min_k, self.max_k+1),
-            columns=self._indices[self.index[0]],
-            dtype=np.float64
-        )
 
-        Z = linkage(data, self.link)
+        self.Z = linkage(data, self.link)
 
 
         for k in range(self.min_k, self.max_k + 1):
 
             # builds a list of the clusters
-            clusters = self._cluster_indices(fcluster(Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
+            clusters = self._cluster_indices(fcluster(self.Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
             # dictionary of clustering of each 'k', to be used in internal validation
             clustering[k] = clusters
             if (self.index[0] in ['all', 'external']) or (set(self.index).intersection(self._external_indices)):
@@ -223,18 +230,21 @@ class Clusterval:
             self.count_choice[str(values[0])] += 1
 
         max_value = 0
-        final_k = 0
         for key, value in self.count_choice.items():
             if value > max_value:
                 max_value = value
                 final_k = key
         self.final_k = final_k
-        self.final_clusters = fcluster(Z, t=final_k, criterion='maxclust')
+        self.final_clusters = fcluster(self.Z, t=final_k, criterion='maxclust')
         self.long_info = self.print_results()
 
         return self
 
     def print_results(self):
+        '''
+        print detailed information on the clustering results conclusion
+        :return: str with the results
+        '''
         output_str = '\n* Linkage criteria is: ' + self.link + '\n'
         output_str += '* Minimum number of clusters to test: ' + str(self.min_k) + '\n'
         output_str += '* Maximum number of clusters to test: ' + str(self.max_k) + '\n'
@@ -244,7 +254,7 @@ class Clusterval:
 
         output_str +="* Among all indices: \n\n"
 
-        output_str +='* According to the majority rule, the best number of clusters is ' + str(self.final_k) + '\n\n'
+        output_str +='\n\n* According to the majority rule, the best number of clusters is ' + str(self.final_k) + '\n\n\n'
 
         for k_num in sorted(self.count_choice):
             output_str +='* ' + str(self.count_choice[k_num]) + ' proposed ' + k_num + ' as the best number of clusters \n\n'
@@ -257,3 +267,27 @@ class Clusterval:
         output_str +=str(self.final_clusters) + '\n'
 
         return output_str
+
+    def plot(self):
+        '''
+        print the hierarchical clustering dendrogram using matplotlib
+        :return: hierarchical clustering dendrogram
+        '''
+
+        fig = plt.figure(figsize=(40, 20))
+        plt.title('Hierarchical Clustering Dendrogram - Linkage: %s, Metrics: %s' % (self.link, str(self.index)),
+                  fontsize=30)
+        plt.xlabel('data point index', labelpad=20, fontsize=30)
+        plt.ylabel('distance', labelpad=10, fontsize=30)
+        plt.xticks(size=40)
+        plt.yticks(size=40)
+        dendrogram(
+
+            self.Z,
+            # truncate_mode = 'lastp',
+            # p=6,
+            leaf_rotation=90.,  # rotates the x axis labels
+            leaf_font_size=10.,  # font size for the x axis labels
+        )
+
+        plt.show()

@@ -25,7 +25,6 @@ def calculate_external(partition_a, partition_b, indices=['all']):
                 contigency_table[i][j] = contigency_table[:, j].sum()
 
         contigency_table[i][j + 1] = contigency_table[i].sum()
-
     N = contigency_table[R][C]
     # condensed information of ct into a mismatch matrix (pairwise agreement)
     sum_all_squared = np.sum(contigency_table[0:R][:, range(0, C)] ** 2)
@@ -54,6 +53,9 @@ def calculate_external(partition_a, partition_b, indices=['all']):
             'VI': variation_information, 'MS': minkowski}
     results = defaultdict()
 
+    if isinstance(indices, str):
+        indices = [x.strip() for x in indices.split(',')]
+
     for index in indices:
         if index == 'all' or index == 'external':
             for cvi, func in indices_funcs.items():
@@ -70,11 +72,6 @@ def calculate_external(partition_a, partition_b, indices=['all']):
                 results[index] = indices_funcs[index](contigency_table, R, C, N)
             else:
                 results[index] = indices_funcs[index](a, b, c, d, M)
-
-        else:
-            raise ValueError(
-                'Please choose a valid index to calculate: \'R\', \'AR*\', \'FM\', \'J*\', \'AW\', \'VD\', \'H\', \'H\'\''
-                '\'F\', \'VI\', \'MS\'')
 
     return results
 
