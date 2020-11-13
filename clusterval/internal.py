@@ -43,7 +43,6 @@ def cvnn(clustering, data):
     :return: CVNN index
     """
 
-
     comp = defaultdict(float)
     sep = defaultdict(float)
     sum_of_objects = 0
@@ -82,8 +81,8 @@ def cvnn(clustering, data):
         comp[k] = compactness / sum_of_objects
         sep[k] = max(separation)
 
-    maxcomp = max(comp.values())
-    maxsep = max(sep.values())
+    maxcomp = max(i for i in comp.values())
+    maxsep = max(i for i in sep.values())
 
 
     if maxcomp == 0 or maxsep == 0:
@@ -102,9 +101,12 @@ def getknn(data, el, k):
     nn = []
     pairs = {key : value for key, value in data.items() if el in key}
     for k_aux in range(0, k):
-        key_min = min(pairs.keys(), key=(lambda x: pairs[x]))
-        nn.append(key_min)
-        del pairs[key_min]
+        try:
+            key_min = min(pairs.keys(), key=(lambda x: pairs[x]))
+            nn.append(key_min)
+            del pairs[key_min]
+        except:
+            raise ValueError("There is empty clusters being generated, please set max_k to a lower values (default=8)")
     return nn
 
 
@@ -150,10 +152,13 @@ def xb_improved(clustering, data): #BIB: New indices for cluster validity assess
                 dist_c = math.sqrt(math.pow((d[0] - d[1]), 2))
                 min_dist_clusters.append(dist_c)
 
-        if min(min_dist_clusters) == 0:
-            min_dis = 1
-        else:
-            min_dis = min(min_dist_clusters)
+        #if min(min_dist_clusters) == 0:
+         #   min_dis = 1
+        #else:
+        try:
+            min_dis = min(i for i in min_dist_clusters if i > 0)
+        except:
+            raise ValueError("There is empty clusters being generated, please set max_k to a lower values (default=8)")
 
         xb_improved_index[k] = max(max_dist_elements) / min_dis
 
@@ -325,9 +330,9 @@ def db_improved(clustering, data):
             if len(centroids) == 1:
                 distance_centroids.append(0)
                 array_of_similarities.append(0)
-            min_dst_centroids = min(distance_centroids)
-            if min_dst_centroids == 0:
-                min_dst_centroids = 1
+            min_dst_centroids = min(i for i in distance_centroids if i > 0)
+            #if min_dst_centroids == 0:
+                #min_dst_centroids = 1
             sum_of_similarities += (max(array_of_similarities) / min_dst_centroids)
 
         db_improved_index[k] = sum_of_similarities / n_c
@@ -451,7 +456,7 @@ def dis(centroids):
     dist_lst = [abs(pair[0]-pair[1]) for pair in centroids_pairs]
 
     d_max = max(dist_lst)
-    d_min = min(dist_lst)
+    d_min = min(i for i in dist_lst if i > 0)
 
     total = sum(dist_lst)
 

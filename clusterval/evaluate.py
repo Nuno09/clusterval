@@ -185,7 +185,6 @@ class Clusterval:
 
         self.Z = linkage(data, self.link)
 
-
         for k in range(self.min_k, self.max_k + 1):
 
             # builds a list of the clusters
