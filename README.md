@@ -29,7 +29,7 @@ pip install git+https://github.com/Nuno09/clusterval.git
 <span>1.</span> Load libraries.
 
 ```python
-from clusterval.evaluate import Clusterval
+from clusterval import Clusterval
 from sklearn.datasets import load_iris, make_blobs
 
 ```

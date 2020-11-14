@@ -2,17 +2,20 @@
 
 from tests.context import clusterval
 import pytest
+import numpy as np
 
 from sklearn.datasets import load_iris, make_blobs
 from sklearn.cluster import AgglomerativeClustering
+from scipy.cluster.hierarchy import linkage
 
 
-iris = load_iris()['data']
+iris = load_iris()
 data, _ = make_blobs(n_samples=500, centers=4, n_features=5, random_state=0)
 
+c = clusterval.Clusterval(min_k=2, max_k=8, index='S_Dbw,S')
+c.evaluate(data)
+
 def test_basic_run():
-    c = clusterval.Clusterval(min_k=2, max_k=8, index='S_Dbw,S')
-    c.evaluate(data)
 
     aclust = AgglomerativeClustering(n_clusters=4)
     y = aclust.fit_predict(data)
@@ -38,13 +41,21 @@ def test_index_input():
     assert exception_msg == 'MM is not a valid index value, please check help(clusterval.Clusterval) to see acceptables indices'
 
 def test_method_mix():
-    c = clusterval.Clusterval(index=['J', 'SD'])
-    assert list(c.output_df.columns) == ['J', 'SD']
+    c4 = clusterval.Clusterval(index=['J', 'SD'])
+    assert list(c4.output_df.columns) == ['J', 'SD']
 
 def test_distances_pairs():
-    c = clusterval.Clusterval()
-    distance = c._distance_dict(data)
+    c5 = clusterval.Clusterval()
+    distance = c5._distance_dict(data)
     for pair in distance:
         opposite_pair = (pair[1], pair[0])
         assert opposite_pair not in distance.keys()
+
+def test_dendrogram_plotting():
+    c.Z = linkage(iris['data'], c.link)
+    labels = np.random.rand(1, iris['data'].shape[0])[0]
+    c.dendrogram = c._calculate_dendrogram(labels)
+    assert len(labels) == len(c.dendrogram['ivl'])
+
+
 

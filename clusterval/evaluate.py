@@ -80,29 +80,34 @@ class Clusterval:
         self.count_choice = None
         self.final_clusters = None
         self.Z= None
+        self.dendrogram = None
 
         self.long_info = None
 
     def __repr__(self):
         args = ['{}={}'.format(' ' + key, value) for key,value in self.__dict__.items() if key not in ['output_df',
                                                                                                        '_external_indices',
-                                                                                                       '_internal_indice',
+                                                                                                       '_internal_indices',
                                                                                                        '_min_indices',
                                                                                                        '_indices',
+                                                                                                       '_data',
+                                                                                                       'dendrogram'
                                                                                                        'final_k',
                                                                                                        'count_choice',
                                                                                                        'final_clusters',
                                                                                                        'long_info',
                                                                                                        'Z']]
         args = ','.join(args)
-        return 'Clusterval(' + str(args) + ')\n'
+        return 'Clusterval(' + str(args) + ')\nfinal_k = {}'.format(self.final_k)
 
     def __str__(self):
         args = ['{} is {}'.format(' ' + key, value) for key, value in self.__dict__.items() if key not in ['output_df',
                                                                                                        '_external_indices',
-                                                                                                       '_internal_indice',
+                                                                                                       '_internal_indices',
                                                                                                        '_min_indices',
                                                                                                        '_indices',
+                                                                                                       '_data'
+                                                                                                       'dendrogram'
                                                                                                        'final_k',
                                                                                                        'count_choice',
                                                                                                        'final_clusters',
@@ -162,14 +167,13 @@ class Clusterval:
 
         return choices_dict
 
-    def evaluate(self, data):
+    def evaluate(self, data, labels=None):
         """
         Perform hierarchical clustering on the dataset and calculate the validation indices
         :param data: array-like, n_samples x n_features
         Dataset to cluster
         :return: Clusterval object
         """
-
         clustering = defaultdict(dict)
         # dictionary with all mean values of the metrics for every k
         choices_dict = defaultdict(list)
@@ -237,6 +241,8 @@ class Clusterval:
         self.final_clusters = fcluster(self.Z, t=final_k, criterion='maxclust')
         self.long_info = self.print_results()
 
+        self.dendrogram = self._calculate_dendrogram(labels)
+
         return self
 
     def print_results(self):
@@ -267,7 +273,26 @@ class Clusterval:
 
         return output_str
 
-    def plot(self):
+    def _calculate_dendrogram(self, labels=None):
+        '''
+        Calculate dendrogram for object linkage product
+        :param labels: array-like, shape 1 x len(data.shape[0])
+        :return: dendrogram
+        '''
+
+        dend = dendrogram(
+
+            self.Z,
+            # truncate_mode = 'lastp',
+            # p=6,
+            leaf_rotation=90.,  # rotates the x axis labels
+            leaf_font_size=10.,  # font size for the x axis labels
+            labels=labels
+        )
+
+        return dend
+
+    def plot(self, labels=None):
         '''
         print the hierarchical clustering dendrogram using matplotlib
         :return: hierarchical clustering dendrogram
@@ -280,13 +305,6 @@ class Clusterval:
         plt.ylabel('distance', labelpad=10, fontsize=30)
         plt.xticks(size=40)
         plt.yticks(size=40)
-        dendrogram(
-
-            self.Z,
-            # truncate_mode = 'lastp',
-            # p=6,
-            leaf_rotation=90.,  # rotates the x axis labels
-            leaf_font_size=10.,  # font size for the x axis labels
-        )
+        self.dendrogram
 
         plt.show()

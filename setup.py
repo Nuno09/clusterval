@@ -3,6 +3,7 @@
 
 
 from setuptools import setup, find_packages
+import pkg_resources
 
 
 install_requires = [
@@ -15,7 +16,7 @@ with open('README.md') as f:
 
 setup(
     name='clusterval',
-    version='0.1.0',
+    version='0.2.4',
     description='Package useful for clustering validation',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -26,6 +27,7 @@ setup(
     packages=find_packages(exclude=('tests', 'docs')),
     #install_requires=install_requires,
     tests_require='pytest',
-    setup_requires='pytest-runner'
+    setup_requires='pytest-runner',
+    package_data={'clusterval': ['datasets/*.csv']}
 )
 
