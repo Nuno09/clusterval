@@ -14,9 +14,8 @@ def calculate_internal(distance_dict, clustering, indices=['all']):
     :param index: str, which index to calculate
     :return: dictionary with indices values for a range of k number of clusters
     """
-    indices_funcs = {'CVNN': cvnn, 'XB*': xb_improved, 'S_Dbw': s_dbw, 'DB*': db_improved, 'S': silhouette, 'SD': sd}
+    indices_funcs = {'CVNN': cvnn, 'XB*': xb_improved, 'S_Dbw': s_dbw, 'DB*': db_improved, 'S': silhouette, 'SD': sd, 'PBM': pbm}
     results = defaultdict(dict)
-
     if isinstance(indices, str):
         indices = [x.strip() for x in indices.split(',')]
 
@@ -38,7 +37,7 @@ def cvnn(clustering, data):
     Metric based on the calculation of intercluster separaration and intracluster compatness.
     Lower value of this metric indicates a better clustering result.
 
-    :param clusters: Clusters represented in List format.
+    :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
     :return: CVNN index
     """
@@ -125,7 +124,7 @@ def xb_improved(clustering, data): #BIB: New indices for cluster validity assess
     cluster centers, and the intracluster compactness as the maximum square distance between each data object and its
     cluster center. The optimal cluster number is reached when the minimum of XB** is found
 
-    :param clusters: Clusters represented in List format.
+    :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
     :return: Xie Beni improved index.
     '''
@@ -194,7 +193,7 @@ def s_dbw(clustering, data):
     optimal cluster number.
 
 
-    :param clusters: Clusters represented in List format.
+    :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
     :return: S_Dbw index.
     '''
@@ -301,7 +300,7 @@ def db_improved(clustering, data):
     '''
     This index is obtained by averaging all cluster similarities. A smaller value indicates a better clustering.
 
-    :param clusters: Clusters represented in List format.
+    :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
     :return: Davies-Bouldin improved index.
     '''
@@ -358,9 +357,9 @@ def silhouette(clustering, data):
      Validates the clustering performance based on the pairwise difference of between and within cluster distances.
      The optimal cluster number is determined by maximizing the value of this index.
 
-    :param clusters: Clusters represented in List format.
+    :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
-    :return: Silhouette improved index.
+    :return: Silhouette index.
     '''
 
     silhouette_index = defaultdict(float)
@@ -427,9 +426,9 @@ def sd(clustering, data):
     and the total separation of clusters, which indicates the separation between the items of a cluster.
     The optimal cluster number is determined by minimizing the value of this index.
 
-    :param clusters: Clusters represented in List format.
+    :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
-    :return: Davies-Bouldin improved index.
+    :return: SD index.
     '''
 
     sd_index = defaultdict(float)
@@ -463,4 +462,38 @@ def dis(centroids):
     return (d_max / d_min) * total
 
 
+def pbm(clustering, data):
+    '''
+    The PBM index (acronym constituted of the initals of the names of its authors,
+    Pakhira, Bandyopadhyay and Maulik) is calculated using the distances between
+    the points and their cluster centers and the distances between the cluster centers
+    themselves.
 
+    :param clustering: dictionary with clustering results for each k simulation.
+    :param data: Dataset represented as a distance matrix.
+    :return: PBM index.
+    '''
+
+    pbm_index = defaultdict(float)
+
+    center_dataset = sum(pair for k, pair in data.items()) / len(data)
+    e_t = sum(abs(pair - center_dataset) for k,pair in data.items())
+
+    e_w = 0
+    for k, clusters in clustering.items():
+        centroids = cluster_centroids(clusters, data)
+        comb_clusters = itertools.combinations(centroids, 2)
+        max_dist_clusters = max(abs(dst[0] - dst[1]) for dst in comb_clusters)
+        for i, cluster in enumerate(clusters):
+            sum_dist2center = 0
+            comb_pairs = itertools.combinations(cluster, 2)
+            for pair in comb_pairs:
+                if pair not in data:
+                    pair = (pair[1], pair[0])
+                d = abs(float(data[pair]) - centroids[i])
+                sum_dist2center += d
+            e_w += sum_dist2center
+
+        pbm_index[k] = math.pow((1/len(clusters)) * (e_t/e_w) * max_dist_clusters, 2)
+
+    return pbm_index

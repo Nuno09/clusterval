@@ -47,10 +47,10 @@ def calculate_external(partition_a, partition_b, indices=['all']):
 
     M = (a + b + c + d)
 
-
     indices_funcs = {'R': rand, 'AR': adjusted_rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
             'VD': van_dongen, 'H': hubert, 'H\'': hubert_normalized, 'F': f_measure,
-            'VI': variation_information, 'MS': minkowski}
+            'VI': variation_information, 'MS': minkowski, 'CD': Czekanowski_Dice, 'K': Kulczynski, 'McNemar': McNemar,
+            'Phi': Phi, 'RT': Rogers_Tanimoto}
     results = defaultdict()
 
     if isinstance(indices, str):
@@ -134,14 +134,15 @@ def van_dongen(contigency_table, R, C, N):
     return van_dongen_index
 
 def hubert(a, b, c, d, M):
-    return (M - 2*b - 2*c) / M
+    #return (M - 2*b - 2*c) / M
+    return a / M
 
 def hubert_normalized(a, b, c, d, M):
 
     aux_hub1 = (a + b) * (a + c)
     aux_hub2 = (a + b) * (a + c) * (d + b) * (d + c)
     if aux_hub2 == 0:
-        hub_normalized = 0
+        hub_normalized = float(0)
     else:
         hub_normalized = (M * a - aux_hub1) / (math.sqrt(aux_hub2))
 
@@ -149,7 +150,7 @@ def hubert_normalized(a, b, c, d, M):
 
 def f_measure(a, b, c, d, M):
     if a + b + c == 0:
-        f_measure_index = 0
+        f_measure_index = float(0)
     else:
         f_measure_index = 2 * a / (2 * a + b + c)
 
@@ -188,5 +189,37 @@ def minkowski(a, b, c, d, M):
         MS = math.sqrt(b + c + 2 * a) / math.sqrt(c)
 
     return MS
+
+def Czekanowski_Dice(a, b, c, d, M):
+
+    return 2*a / 2*a + b + c
+
+def Kulczynski(a, b, c, d, M):
+
+    c = (a / (a + c)) + (a / (a + b))
+
+    return 1/2 * c
+
+def McNemar(a, b, c, d, M):
+
+    return (b - c) / math.sqrt((b + c))
+
+def Phi(a, b, c, d, M):
+
+    c1 = (a * d) - (b * c)
+    c2 = (a + b)*(a + c)*(b + d)*(c + d)
+
+    if c2 == 0:
+        c = 0
+    else:
+        c = c1 / c2
+    return c
+
+def Rogers_Tanimoto(a, b, c, d, M):
+
+    return (a + d) / (a + d + 2*(b + c))
+
+
+
 
 

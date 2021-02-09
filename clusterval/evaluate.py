@@ -14,8 +14,8 @@ import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
-from clusterval.internal import calculate_internal
-from clusterval.external import calculate_external
+from internal import calculate_internal
+from external import calculate_external
 
 
 class Clusterval:
@@ -39,15 +39,15 @@ class Clusterval:
 
     def __init__(self, min_k=2, max_k=8, link='ward', bootstrap_samples=250, index='all'):
 
-        external_indices = ['R', 'AR', 'FM', 'J', 'AW', 'VD', 'H', 'H\'', 'F', 'VI', 'MS']
-        internal_indices = ['CVNN', 'XB*', 'S_Dbw', 'DB*', 'S', 'SD']
+        external_indices = ['R', 'AR', 'FM', 'J', 'AW', 'VD', 'H', 'H\'', 'F', 'VI', 'MS', 'CD', 'K', 'McNemar', 'Phi', 'RT']
+        internal_indices = ['CVNN', 'XB*', 'S_Dbw', 'DB*', 'S', 'SD', 'PBM']
         min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB*', 'S_Dbw', 'DB*', 'SD']
         indices = {'R': ['R'], 'AR': ['AR'], 'FM': ['FM'], 'J': ['J'], 'AW': ['AW'],
                    'VD': ['VD'], 'H': ['H'], 'H\'': ['H\''], 'F': ['F'],
                    'VI': ['VI'], 'MS': ['MS'], 'CVNN': ['CVNN'], 'XB*': ['XB*'],
                    'S_Dbw': ['S_Dbw'], 'DB*': ['DB*'], 'S': ['S'], 'SD': ['SD'],
                    'all': external_indices + internal_indices, 'external': external_indices,
-                   'internal': internal_indices}
+                   'internal': internal_indices, 'CD': ['CD'], 'K': ['K'], 'McNemar': ['McNemar'], 'Phi': ['Phi'], 'RT': ['RT'], 'PBM': ['PBM']}
 
 
         if isinstance(index, str):
@@ -80,7 +80,6 @@ class Clusterval:
         self.count_choice = None
         self.final_clusters = None
         self.Z= None
-        self.dendrogram = None
 
         self.long_info = None
 
@@ -91,7 +90,6 @@ class Clusterval:
                                                                                                        '_min_indices',
                                                                                                        '_indices',
                                                                                                        '_data',
-                                                                                                       'dendrogram'
                                                                                                        'final_k',
                                                                                                        'count_choice',
                                                                                                        'final_clusters',
@@ -106,8 +104,7 @@ class Clusterval:
                                                                                                        '_internal_indices',
                                                                                                        '_min_indices',
                                                                                                        '_indices',
-                                                                                                       '_data'
-                                                                                                       'dendrogram'
+                                                                                                       '_data',
                                                                                                        'final_k',
                                                                                                        'count_choice',
                                                                                                        'final_clusters',
@@ -241,7 +238,6 @@ class Clusterval:
         self.final_clusters = fcluster(self.Z, t=final_k, criterion='maxclust')
         self.long_info = self.print_results()
 
-        self.dendrogram = self._calculate_dendrogram(labels)
 
         return self
 
@@ -265,6 +261,12 @@ class Clusterval:
             output_str +='* ' + str(self.count_choice[k_num]) + ' proposed ' + k_num + ' as the best number of clusters \n\n'
 
         output_str +='\t\t\t***** Conclusion *****\t\t\t\n'
+
+        #Display all dataframe
+        pd.set_option('display.max_rows', None)
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', None)
+        pd.set_option('display.max_colwidth', None)
 
         output_str +=str(self.output_df) + '\n'
 
@@ -295,7 +297,7 @@ class Clusterval:
     def plot(self, labels=None):
         '''
         print the hierarchical clustering dendrogram using matplotlib
-        :return: hierarchical clustering dendrogram
+        :return: matplotlib image of dendrogram
         '''
 
         fig = plt.figure(figsize=(40, 20))
@@ -305,6 +307,31 @@ class Clusterval:
         plt.ylabel('distance', labelpad=10, fontsize=30)
         plt.xticks(size=40)
         plt.yticks(size=40)
-        self.dendrogram
+        self._calculate_dendrogram(labels)
 
         plt.show()
+
+
+if __name__=='__main__':
+    from sklearn.datasets import load_iris, make_blobs
+    import re
+    c = Clusterval()
+    data = load_iris()['data']
+    blobs, _ = make_blobs(n_samples=500, centers=4, n_features=5, random_state=0)
+
+    synthetic_dim2_9 = []
+    pattern = re.compile(r'^\s+')
+    with open('/home/nuno/Documentos/Datasets/data_dim_k=9_txt/dim2.txt', 'r') as dim2:
+        for line in dim2:
+            re_new = re.sub(pattern, '', line)
+            new = ''
+            for i, el in enumerate(re_new[:-1]):
+                if (el != ' ') and (re_new[i+1] == ' '):
+                    new = new + el + ','
+                elif el != ' ':
+                    new += el
+
+            new = new.split(',')
+            new = [float(item) for item in new]
+            synthetic_dim2_9.append(new)
+
