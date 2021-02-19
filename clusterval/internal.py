@@ -64,6 +64,7 @@ def cvnn(clustering, data, centroids):
 
     :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
+    :param centroids: dictionary mapping clustering to its clusters centers
     :return: CVNN index
     """
 
@@ -151,6 +152,7 @@ def xb_improved(clustering, data, centroids): #BIB: New indices for cluster vali
 
     :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
+    :param centroids: dictionary mapping clustering to its clusters centers
     :return: Xie Beni improved index.
     '''
 
@@ -200,6 +202,7 @@ def s_dbw(clustering, data, centroids):
 
     :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
+    :param centroids: dictionary mapping clustering to its clusters centers
     :return: S_Dbw index.
     '''
 
@@ -305,6 +308,7 @@ def db_improved(clustering, data, centroids):
 
     :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
+    :param centroids: dictionary mapping clustering to its clusters centers
     :return: Davies-Bouldin improved index.
     '''
 
@@ -361,6 +365,7 @@ def silhouette(clustering, data, centroids):
 
     :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
+    :param centroids: dictionary mapping clustering to its clusters centers
     :return: Silhouette index.
     '''
 
@@ -430,6 +435,7 @@ def sd(clustering, data, centroids):
 
     :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
+    :param centroids: dictionary mapping clustering to its clusters centers
     :return: SD index.
     '''
 
@@ -471,6 +477,7 @@ def pbm(clustering, data, centroids):
 
     :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.
+    :param centroids: dictionary mapping clustering to its clusters centers
     :return: PBM index.
     '''
 
@@ -499,6 +506,15 @@ def pbm(clustering, data, centroids):
 
 
 def dunn(clustering, data, centroids):
+    '''
+        Dunn's calculates the minimum distance between clusters to measure the intercluster separation and the maximum
+        diameter among all clusters to measure the intracluster compactness.
+
+        :param clustering: dictionary with clustering results for each k simulation.
+        :param data: Dataset represented as a distance matrix.
+        :param centroids: dictionary mapping clustering to its clusters centers
+        :return: Dunn index.
+        '''
 
     dunn_index = defaultdict(float)
 
@@ -513,14 +529,15 @@ def dunn(clustering, data, centroids):
             #step for calculating max diameter of clustering
             diameter_all = []
             for c in clusters:
-                pairs = list(itertools.combinations(c, 2))
-                distances = []
-                for pair in pairs:
-                    if pair not in data.keys():
-                        pair = (pair[1], pair[0])
-                    distances.append(float(data[pair]))
+                if len(c) >= 2:
+                    pairs = list(itertools.combinations(c, 2))
+                    distances = []
+                    for pair in pairs:
+                        if pair not in data.keys():
+                            pair = (pair[1], pair[0])
+                        distances.append(float(data[pair]))
 
-                diameter_all.append(max(distances))
+                    diameter_all.append(max(distances))
 
             max_diameter = max(diameter_all)
 
