@@ -14,8 +14,8 @@ import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
-from internal import calculate_internal
-from external import calculate_external
+from clusterval.internal import calculate_internal
+from clusterval.external import calculate_external
 
 
 class Clusterval:
@@ -40,14 +40,15 @@ class Clusterval:
     def __init__(self, min_k=2, max_k=8, link='ward', bootstrap_samples=250, index='all'):
 
         external_indices = ['R', 'AR', 'FM', 'J', 'AW', 'VD', 'H', 'H\'', 'F', 'VI', 'MS', 'CD', 'K', 'McNemar', 'Phi', 'RT']
-        internal_indices = ['CVNN', 'XB*', 'S_Dbw', 'DB*', 'S', 'SD', 'PBM']
+        internal_indices = ['CVNN', 'XB*', 'S_Dbw', 'DB*', 'S', 'SD', 'PBM', 'Dunn']
         min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB*', 'S_Dbw', 'DB*', 'SD']
         indices = {'R': ['R'], 'AR': ['AR'], 'FM': ['FM'], 'J': ['J'], 'AW': ['AW'],
                    'VD': ['VD'], 'H': ['H'], 'H\'': ['H\''], 'F': ['F'],
                    'VI': ['VI'], 'MS': ['MS'], 'CVNN': ['CVNN'], 'XB*': ['XB*'],
                    'S_Dbw': ['S_Dbw'], 'DB*': ['DB*'], 'S': ['S'], 'SD': ['SD'],
                    'all': external_indices + internal_indices, 'external': external_indices,
-                   'internal': internal_indices, 'CD': ['CD'], 'K': ['K'], 'McNemar': ['McNemar'], 'Phi': ['Phi'], 'RT': ['RT'], 'PBM': ['PBM']}
+                   'internal': internal_indices, 'CD': ['CD'], 'K': ['K'], 'McNemar': ['McNemar'], 'Phi': ['Phi'],
+                   'RT': ['RT'], 'PBM': ['PBM'], 'Dunn': ['Dunn']}
 
 
         if isinstance(index, str):
