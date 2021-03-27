@@ -310,29 +310,8 @@ class Clusterval:
         plt.yticks(size=40)
         self._calculate_dendrogram(labels)
 
+
         plt.show()
 
 
-if __name__=='__main__':
-    from sklearn.datasets import load_iris, make_blobs
-    import re
-    c = Clusterval()
-    data = load_iris()['data']
-    blobs, _ = make_blobs(n_samples=500, centers=4, n_features=5, random_state=0)
-
-    synthetic_dim2_9 = []
-    pattern = re.compile(r'^\s+')
-    with open('/home/nuno/Documentos/Datasets/data_dim_k=9_txt/dim2.txt', 'r') as dim2:
-        for line in dim2:
-            re_new = re.sub(pattern, '', line)
-            new = ''
-            for i, el in enumerate(re_new[:-1]):
-                if (el != ' ') and (re_new[i+1] == ' '):
-                    new = new + el + ','
-                elif el != ' ':
-                    new += el
-
-            new = new.split(',')
-            new = [float(item) for item in new]
-            synthetic_dim2_9.append(new)
 
