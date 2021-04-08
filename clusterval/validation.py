@@ -313,5 +313,3 @@ class Clusterval:
 
         plt.show()
 
-
-

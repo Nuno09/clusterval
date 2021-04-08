@@ -5,6 +5,7 @@ Calculate internal validation. Dataset with pairs and their distances should be 
 import  itertools
 from collections import OrderedDict, defaultdict
 import math
+import clusterval
 
 def calculate_internal(distance_dict, clustering, indices=['all']):
     """
@@ -19,6 +20,14 @@ def calculate_internal(distance_dict, clustering, indices=['all']):
     results = defaultdict(dict)
     if isinstance(indices, str):
         indices = [x.strip() for x in indices.split(',')]
+
+    if not isinstance(clustering, dict):
+        clustering = {len(clustering): clustering}
+
+    if not isinstance(distance_dict, dict):
+        c_obj = clusterval.Clusterval()
+        distance_dict = c_obj._distance_dict(distance_dict)
+        print(distance_dict)
 
     # create dictionary mapping clustering to its clusters centers
     centroids = OrderedDict.fromkeys(list(clustering.keys()))
@@ -485,7 +494,6 @@ def pbm(clustering, data, centroids):
 
     center_dataset = sum(pair for k, pair in data.items()) / len(data)
     e_t = sum(abs(pair - center_dataset) for k,pair in data.items())
-
     e_w = 0
     for k, clusters in clustering.items():
         comb_clusters = itertools.combinations(centroids[k], 2)
@@ -500,7 +508,13 @@ def pbm(clustering, data, centroids):
                 sum_dist2center += d
             e_w += sum_dist2center
 
-        pbm_index[k] = math.pow((1/len(clusters)) * (e_t/e_w) * max_dist_clusters, 2)
+        #if clause for the case with cluster with only one element
+        if e_w == 0:
+            dist2center = 1
+        else:
+            dist2center = e_t/e_w
+
+        pbm_index[k] = math.pow((1/len(clusters)) * dist2center * max_dist_clusters, 2)
 
     return pbm_index
 
