@@ -15,7 +15,7 @@ def calculate_internal(distance_dict, clustering, indices=['all']):
     :param index: str, which index to calculate
     :return: dictionary with indices values for a range of k number of clusters
     """
-    indices_funcs = {'CVNN': cvnn, 'XB*': xb_improved, 'S_Dbw': s_dbw, 'DB*': db_improved, 'S': silhouette, 'SD': sd,
+    indices_funcs = {'CVNN': cvnn, 'XB': xb_improved, 'S_Dbw': s_dbw, 'DB': db_improved, 'S': silhouette, 'SD': sd,
                      'PBM': pbm, 'Dunn': dunn}
     results = defaultdict(dict)
     if isinstance(indices, str):
@@ -155,9 +155,9 @@ def pairwise_distance(pairs, data):
 
 def xb_improved(clustering, data, centroids): #BIB: New indices for cluster validity assessment - Kim
     '''
-    The Xie-Beni improved index (XB*) defines the intercluster separation as the minimum square distance between
+    The Xie-Beni improved index (XB) defines the intercluster separation as the minimum square distance between
     cluster centers, and the intracluster compactness as the maximum square distance between each data object and its
-    cluster center. The optimal cluster number is reached when the minimum of XB** is found
+    cluster center. The optimal cluster number is reached when the minimum of XB is found
 
     :param clustering: dictionary with clustering results for each k simulation.
     :param data: Dataset represented as a distance matrix.

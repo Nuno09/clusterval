@@ -33,22 +33,22 @@ class Clusterval:
     number of bootstrap samples simulated. Default 250
 
     index: list of str or str, optional
-    what indices to be calculated. Accepts 'all' to calculate all, or one of [R', 'AR', 'FM', 'J', 'AW', 'VD', 'H',
-           'H\'', 'F', 'VI', 'MS', 'CVNN', 'XB**', 'S_Dbw', 'DB*', 'S', 'SD']. Default 'all'.
+    what indices to be calculated. Accepts 'all' to calculate all, 'internal' to calculate only internal indices,
+     'external' to calculate external indices, or one of [R', 'FM', 'J', 'AW', 'VD', 'H',
+           'H\'', 'F', 'VI', 'MS', 'CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']. Default 'all'.
     """
 
     def __init__(self, min_k=2, max_k=8, link='ward', bootstrap_samples=250, index='all'):
 
-        external_indices = ['R', 'AR', 'FM', 'J', 'AW', 'VD', 'H', 'H\'', 'F', 'VI', 'MS', 'CD', 'K', 'McNemar', 'Phi', 'RT']
-        internal_indices = ['CVNN', 'XB*', 'S_Dbw', 'DB*', 'S', 'SD', 'PBM', 'Dunn']
-        min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB*', 'S_Dbw', 'DB*', 'SD']
+        external_indices = ['R', 'FM', 'J', 'AW', 'VD', 'H', 'H\'', 'F', 'VI', 'MS']
+        internal_indices = ['CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']
+        min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB', 'S_Dbw', 'DB', 'SD']
         indices = {'R': ['R'], 'AR': ['AR'], 'FM': ['FM'], 'J': ['J'], 'AW': ['AW'],
                    'VD': ['VD'], 'H': ['H'], 'H\'': ['H\''], 'F': ['F'],
-                   'VI': ['VI'], 'MS': ['MS'], 'CVNN': ['CVNN'], 'XB*': ['XB*'],
-                   'S_Dbw': ['S_Dbw'], 'DB*': ['DB*'], 'S': ['S'], 'SD': ['SD'],
+                   'VI': ['VI'], 'MS': ['MS'], 'CVNN': ['CVNN'], 'XB': ['XB'],
+                   'S_Dbw': ['S_Dbw'], 'DB': ['DB'], 'S': ['S'], 'SD': ['SD'],
                    'all': external_indices + internal_indices, 'external': external_indices,
-                   'internal': internal_indices, 'CD': ['CD'], 'K': ['K'], 'McNemar': ['McNemar'], 'Phi': ['Phi'],
-                   'RT': ['RT'], 'PBM': ['PBM'], 'Dunn': ['Dunn']}
+                   'internal': internal_indices, 'PBM': ['PBM'], 'Dunn': ['Dunn']}
 
 
         if isinstance(index, str):

@@ -47,10 +47,9 @@ def calculate_external(partition_a, partition_b, indices=['all']):
 
     M = (a + b + c + d)
 
-    indices_funcs = {'R': rand, 'AR': adjusted_rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
+    indices_funcs = {'R': rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
             'VD': van_dongen, 'H': hubert, 'H\'': hubert_normalized, 'F': f_measure,
-            'VI': variation_information, 'MS': minkowski, 'CD': Czekanowski_Dice, 'K': Kulczynski, 'McNemar': McNemar,
-            'Phi': Phi, 'RT': Rogers_Tanimoto}
+            'VI': variation_information, 'MS': minkowski}
     results = defaultdict()
 
     if isinstance(indices, str):
@@ -80,16 +79,6 @@ def calculate_external(partition_a, partition_b, indices=['all']):
 
 def rand(a, b, c, d, M):
     return (a + d) / (a + b + c + d)
-
-def adjusted_rand(a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N):
-    nc = ((sum_R_squared - sum_R) * (sum_C_squared - sum_C)) / (2 * N * (N - 1))
-    nd = (sum_R_squared - sum_R + sum_C_squared - sum_C) / 4
-    if (nd == nc):
-        adjusted_rand_index = 0
-    else:
-        adjusted_rand_index = (a - nc) / (nd - nc)
-
-    return adjusted_rand_index
 
 def fowlkes_mallows(a, b, c, d, M):
     if ((a + b) == 0 or (a + c) == 0):
@@ -190,34 +179,7 @@ def minkowski(a, b, c, d, M):
 
     return MS
 
-def Czekanowski_Dice(a, b, c, d, M):
 
-    return 2*a / 2*a + b + c
-
-def Kulczynski(a, b, c, d, M):
-
-    c = (a / (a + c)) + (a / (a + b))
-
-    return 1/2 * c
-
-def McNemar(a, b, c, d, M):
-
-    return (b - c) / math.sqrt((b + c))
-
-def Phi(a, b, c, d, M):
-
-    c1 = (a * d) - (b * c)
-    c2 = (a + b)*(a + c)*(b + d)*(c + d)
-
-    if c2 == 0:
-        c = 0
-    else:
-        c = c1 / c2
-    return c
-
-def Rogers_Tanimoto(a, b, c, d, M):
-
-    return (a + d) / (a + d + 2*(b + c))
 
 
 
