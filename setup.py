@@ -16,7 +16,7 @@ with open('README.md') as f:
 
 setup(
     name='clusterval',
-    version='0.3.2',
+    version='0.3.4',
     description='Package useful for clustering validation',
     long_description=long_description,
     long_description_content_type="text/markdown",

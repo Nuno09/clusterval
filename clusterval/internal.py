@@ -189,6 +189,7 @@ def xb_improved(clustering, data, centroids): #BIB: New indices for cluster vali
         #if min(min_dist_clusters) == 0:
          #   min_dis = 1
         #else:
+
         try:
             min_dis = min(i for i in min_dist_clusters if i > 0)
         except:

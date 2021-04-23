@@ -6,7 +6,8 @@ Validation can be done with external or internal indices, or both.
 """
 
 
-from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster, cut_tree
+from sklearn.cluster import AgglomerativeClustering
 import random
 from statistics import mean
 import pandas as pd
@@ -186,11 +187,20 @@ class Clusterval:
 
 
         self.Z = linkage(data, self.link)
-
         for k in range(self.min_k, self.max_k + 1):
 
             # builds a list of the clusters
-            clusters = self._cluster_indices(fcluster(self.Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
+
+            #with fcluster
+            #clusters = self._cluster_indices(fcluster(self.Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
+
+            #with cut_tree
+            clusters = self._cluster_indices(cut_tree(self.Z, k), [i for i in range(0, len(data))])
+
+            #with AgglomerativeClustering
+            #clusters = self._cluster_indices(AgglomerativeClustering(n_clusters=k, affinity='euclidean', linkage=self.link).fit(data).labels_, [i for i in range(0, len(data))])
+
+
             # dictionary of clustering of each 'k', to be used in internal validation
             clustering[k] = clusters
             if (self.index[0] in ['all', 'external']) or (set(self.index).intersection(self._external_indices)):
