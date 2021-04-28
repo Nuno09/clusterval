@@ -46,7 +46,7 @@ results.
 
 ```python
 clusterval = Clusterval()
-eval = clusterval.evaluate(data)
+eval = clusterval.evaluate(data, algorithm='hierarchical')
 print(eval.final_k)
 
 Outupt:
@@ -63,6 +63,7 @@ Long output:
 * Minimum number of clusters to test: 2
 * Maximum number of clusters to test: 8
 * Number of bootstrap samples generated: 250
+* Clustering algorithm used: hierarchical
 
 * Validation Indices calculated: ['all']
 
@@ -108,11 +109,12 @@ Long output:
 ```
 <span>4.</span> The user can also change some execution parameters. For example, linkage criteria, range of `k` to test,
 bootstrap simulations and CVI to use.
+When evaluating one can also choose kmeans algorithm instead of hierachical.
 
 ```python
 data, _ = make_blobs(n_samples=700, centers=10, n_features=5, random_state=0)
 clusterval = Clusterval(min_k=5, max_k=15, link='single', bootstrap_samples=200, index='CVNN')
-eval = clusterval.evaluate(data)
+eval = clusterval.evaluate(data, algorithm='kmeans')
 print(eval.final_k)
 
 Output:

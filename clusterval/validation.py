@@ -7,7 +7,7 @@ Validation can be done with external or internal indices, or both.
 
 
 from scipy.cluster.hierarchy import dendrogram, linkage, fcluster, cut_tree
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import KMeans
 import random
 from statistics import mean
 import pandas as pd
@@ -64,6 +64,7 @@ class Clusterval:
         self._internal_indices = internal_indices
         self._min_indices = min_indices
         self._indices = indices
+        self._algorithm = None
 
         self.min_k = min_k
         self.max_k = max_k
@@ -166,10 +167,11 @@ class Clusterval:
 
         return choices_dict
 
-    def evaluate(self, data, labels=None):
+    def evaluate(self, data, algorithm='hierarchical'):
         """
-        Perform hierarchical clustering on the dataset and calculate the validation indices
+        Perform hierarchical clustering or Kmeans clustering on the dataset and calculate the validation indices
         :param data: array-like, n_samples x n_features
+        :param algorithm: clustering algorithm to use (hierarchical or kmeans)
         Dataset to cluster
         :return: Clusterval object
         """
@@ -177,7 +179,7 @@ class Clusterval:
         # dictionary with all mean values of the metrics for every k
         choices_dict = defaultdict(list)
         self.count_choice = defaultdict(int)
-
+        self._algorithm = algorithm
         results = {k: {} for k in range(self.min_k, self.max_k + 1)}
         # build dictionaries that hold the calculations
         for k in range(self.min_k, self.max_k + 1):
@@ -185,20 +187,25 @@ class Clusterval:
                 for index in self._indices[metrics]:
                     results[k][index] = []
 
+        if algorithm == 'hierarchical':
+            self.Z = linkage(data, self.link)
 
-        self.Z = linkage(data, self.link)
         for k in range(self.min_k, self.max_k + 1):
 
-            # builds a list of the clusters
+            if algorithm == 'hierarchical':
+                # builds a list of the hierarchical clusters
 
-            #with fcluster
-            #clusters = self._cluster_indices(fcluster(self.Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
+                #with fcluster
+                #clusters = self._cluster_indices(fcluster(self.Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
 
-            #with cut_tree
-            clusters = self._cluster_indices(cut_tree(self.Z, k), [i for i in range(0, len(data))])
+                #with cut_tree
+                clusters = self._cluster_indices(cut_tree(self.Z, k), [i for i in range(0, len(data))])
 
-            #with AgglomerativeClustering
-            #clusters = self._cluster_indices(AgglomerativeClustering(n_clusters=k, affinity='euclidean', linkage=self.link).fit(data).labels_, [i for i in range(0, len(data))])
+            elif algorithm == 'kmeans':
+                clusters = self._cluster_indices(KMeans(n_clusters=k, random_state=0).fit(data).labels_, [i for i in range(0, len(data))])
+
+            else:
+                raise ValueError('% is not an acceptable clustering algorithm, please choose \'hierarchical\' or \'kmeans\'',algorithm)
 
 
             # dictionary of clustering of each 'k', to be used in internal validation
@@ -209,10 +216,16 @@ class Clusterval:
                 for i in range(self.bootstrap_samples):
                     sample = random.sample(list(data), int(3 / 4 * len(data)))
 
-                    Z_sample = linkage(sample, self.link)
+                    if algorithm == 'hierarchical':
+                        Z_sample = linkage(sample, self.link)
 
-                    clusters_sample = self._cluster_indices(fcluster(Z_sample, t=k, criterion='maxclust'),
-                                                      [i for i in range(0, len(sample))])
+                        #clusters_sample = self._cluster_indices(fcluster(Z_sample, t=k, criterion='maxclust'), [i for i in range(0, len(sample))])
+
+                        clusters_sample = self._cluster_indices(cut_tree(Z_sample, k), [i for i in range(0, len(sample))])
+
+                    else:
+                        clusters_sample = self._cluster_indices(KMeans(n_clusters=k, random_state=0).fit(sample).labels_, [i for i in range(0, len(sample))])
+
                     external = calculate_external(clusters, clusters_sample, indices=self.index)
 
                     for key, metric in external.items():
@@ -245,8 +258,13 @@ class Clusterval:
             if value > max_value:
                 max_value = value
                 final_k = key
-        self.final_k = final_k
-        self.final_clusters = fcluster(self.Z, t=final_k, criterion='maxclust')
+        self.final_k = int(final_k)
+
+        if algorithm == 'hierarchical':
+            #self.final_clusters = fcluster(self.Z, t=self.final_k, criterion='maxclust')
+            self.final_clusters = cut_tree(self.Z, self.final_k)
+        else:
+            self.final_clusters = KMeans(n_clusters=self.final_k, random_state=0).fit(data).labels_
         self.long_info = self.print_results()
 
 
@@ -261,6 +279,7 @@ class Clusterval:
         output_str += '* Minimum number of clusters to test: ' + str(self.min_k) + '\n'
         output_str += '* Maximum number of clusters to test: ' + str(self.max_k) + '\n'
         output_str +='* Number of bootstrap samples generated: ' + str(self.bootstrap_samples) + '\n'
+        output_str += '* Clustering algorithm used: ' + str(self._algorithm) + '\n'
 
         output_str +='\n* Validation Indices calculated: ' + str(self.index) + '\n\n'
 
