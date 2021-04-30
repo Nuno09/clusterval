@@ -262,11 +262,10 @@ class Clusterval:
 
         if algorithm == 'hierarchical':
             #self.final_clusters = fcluster(self.Z, t=self.final_k, criterion='maxclust')
-            self.final_clusters = cut_tree(self.Z, self.final_k)
+            self.final_clusters = np.concatenate(np.asarray(cut_tree(self.Z, self.final_k)))
         else:
             self.final_clusters = KMeans(n_clusters=self.final_k, random_state=0).fit(data).labels_
         self.long_info = self.print_results()
-
 
         return self
 

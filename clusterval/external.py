@@ -78,13 +78,13 @@ def calculate_external(partition_a, partition_b, indices=['all']):
 
 
 def rand(a, b, c, d, M):
-    return (a + d) / (a + b + c + d)
+    return (a + d) / M
 
 def fowlkes_mallows(a, b, c, d, M):
     if ((a + b) == 0 or (a + c) == 0):
         FM = 0
     else:
-        FM = a / math.sqrt((a + b) * (a + c))
+        FM = math.sqrt((a/(a + b)) * (a/(a + c)))
 
     return FM
 
@@ -141,7 +141,7 @@ def f_measure(a, b, c, d, M):
     if a + b + c == 0:
         f_measure_index = float(0)
     else:
-        f_measure_index = 2 * a / (2 * a + b + c)
+        f_measure_index = (2*a) / ((2*a) + b + c)
 
     return f_measure_index
 
@@ -175,7 +175,7 @@ def minkowski(a, b, c, d, M):
     if c == 0:
         MS = 0
     else:
-        MS = math.sqrt(b + c + 2 * a) / math.sqrt(c)
+        MS = math.sqrt(b + c + (2*a)) / math.sqrt(c)
 
     return MS
 

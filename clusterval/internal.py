@@ -18,6 +18,7 @@ def calculate_internal(distance_dict, clustering, indices=['all']):
     indices_funcs = {'CVNN': cvnn, 'XB': xb_improved, 'S_Dbw': s_dbw, 'DB': db_improved, 'S': silhouette, 'SD': sd,
                      'PBM': pbm, 'Dunn': dunn}
     results = defaultdict(dict)
+
     if isinstance(indices, str):
         indices = [x.strip() for x in indices.split(',')]
 
@@ -27,7 +28,7 @@ def calculate_internal(distance_dict, clustering, indices=['all']):
     if not isinstance(distance_dict, dict):
         c_obj = clusterval.Clusterval()
         distance_dict = c_obj._distance_dict(distance_dict)
-        print(distance_dict)
+
 
     # create dictionary mapping clustering to its clusters centers
     centroids = OrderedDict.fromkeys(list(clustering.keys()))
@@ -76,44 +77,24 @@ def cvnn(clustering, data, centroids):
     :param centroids: dictionary mapping clustering to its clusters centers
     :return: CVNN index
     """
-
     comp = defaultdict(float)
     sep = defaultdict(float)
-    sum_of_objects = 0
+
+
+    #nearest neighbours values to test
+    nn_values = [1, 5, 10, 15, 20]
+
+    #calculate nearest neighbours for k=[1,5,10,15,20]
+    nn_history = getknn(data, nn_values)
 
     for k, clusters in clustering.items():
-        separation = []
-        compactness = 0
-        for cluster in clusters:
-            n_i = len(cluster)
-            sum_of_objects += n_i * (n_i - 1)
-            if n_i != 0:
-                #intracluster compactness
-                pairs = list(itertools.combinations(cluster, 2))
-                distance_i = pairwise_distance(pairs, data)
-                if distance_i != 0:
-                    compactness += distance_i #Method-Independent Indices for Cluster Validation and Estimating the Number of Clusters - chapter 26 Handbook of Cluster Analysis
 
+        compactness = cvnn_compactness(data, clusters)
+        separation = cvnn_separation(clusters, nn_history, nn_values)
 
-                # intercluster separation
-                sum_of_weights = 0
-                for el in cluster:
-                    count_nn = 0
-                    nn = getknn(data, el, k)
-                    for n in nn:
-                        for m in n:
-                            if m != el and m not in cluster:
-                                count_nn += 1
-                    sum_of_weights += count_nn / k
+        comp[k] = compactness
+        sep[k] = separation
 
-                separation.append(sum_of_weights / n_i)
-            else:
-                sum_of_objects = 1
-                compactness += 10
-                separation.append(10)
-
-        comp[k] = compactness / sum_of_objects
-        sep[k] = max(separation)
 
     maxcomp = max(i for i in comp.values())
     maxsep = max(i for i in sep.values())
@@ -128,21 +109,81 @@ def cvnn(clustering, data, centroids):
 
     cvnn_index = {key: sep_final[key] + comp_final[key] for key in comp.keys()}
 
+
     return cvnn_index
 
 
-def getknn(data, el, k):
-    nn = []
-    pairs = {key : value for key, value in data.items() if el in key}
-    for k_aux in range(0, k):
-        try:
-            key_min = min(pairs.keys(), key=(lambda x: pairs[x]))
-            nn.append(key_min)
-            del pairs[key_min]
-        except:
-            raise ValueError("There is empty clusters being generated, please set max_k to a lower values (default=8)")
-    return nn
+def getknn(data, nn_values):
 
+    nn_history = {'1': defaultdict(list), '5': defaultdict(list), '10': defaultdict(list), '15': defaultdict(list), '20': defaultdict(list)}
+
+    #get first row index of data
+    first_el = next(iter(data))[0]
+    elements = [first_el]
+    for key in data.keys():
+        if key[0] != first_el:
+            break
+        else:
+            elements.append(key[1])
+
+    for k in nn_values:
+        for el in elements:
+            nn = []
+            pairs = {key : value for key, value in data.items() if el in key}
+            for k_aux in range(0, k):
+                try:
+                    key_min = min(pairs.keys(), key=(lambda x: pairs[x]))
+                    if key_min[0] == el:
+                        nn.append(key_min[1])
+                    else:
+                        nn.append(key_min[0])
+                    del pairs[key_min]
+                except:
+                    raise ValueError("There is empty clusters being generated, please set max_k to a lower values (default=8)")
+            nn_history[str(k)][str(el)] = nn
+
+    return nn_history
+
+
+def cvnn_compactness(data, clusters):
+    compactness = 0
+    sum_of_objects = 0
+    for cluster in clusters:
+        n_i = len(cluster)
+        if n_i == 0:
+            raise ValueError("Empty clusters being formed")
+        sum_of_objects += n_i * (n_i - 1)
+        # intracluster compactness
+        pairs = list(itertools.combinations(cluster, 2))
+        distance_i = pairwise_distance(pairs, data)
+        compactness += distance_i
+
+
+    return compactness / sum_of_objects
+
+
+def cvnn_separation(clusters, nn_history, nn_values):
+    best_k_value = []
+    for k in nn_values:
+        separation = []
+        for cluster in clusters:
+            n_i = len(cluster)
+            if n_i == 0:
+                raise ValueError("Empty clusters being formed")
+            # intercluster separation
+            sum_of_weights = 0
+            for el in cluster:
+                count_nn = 0
+                for n in nn_history[str(k)][str(el)]:
+                    if n not in cluster:
+                        count_nn += 1
+                sum_of_weights += count_nn / k
+
+            separation.append(sum_of_weights / n_i)
+
+        best_k_value.append(max(separation))
+
+    return min(best_k_value)
 
 def pairwise_distance(pairs, data):
     sum_of_distances = 0
@@ -150,7 +191,6 @@ def pairwise_distance(pairs, data):
         if pair not in data.keys():
             pair = (pair[1], pair[0])
         sum_of_distances += float(data[pair])
-
     return sum_of_distances
 
 def xb_improved(clustering, data, centroids): #BIB: New indices for cluster validity assessment - Kim
@@ -328,7 +368,7 @@ def db_improved(clustering, data, centroids):
 
         sum_of_similarities = 0
         for i, cluster in enumerate(clusters):
-            array_of_similarities = []
+            rij = []
             distance_centroids = []
             if len(cluster) == 1:
                 s_i = 0
@@ -340,15 +380,19 @@ def db_improved(clustering, data, centroids):
                         s_j = 0
                     else:
                         s_j = similarity(clusterJ, data, centroids[k][j])
-                    array_of_similarities.append(s_i + s_j)
-                    distance_centroids.append(abs(centroids[k][i]-centroids[k][j]))
-            if len(centroids[k]) == 1:
-                distance_centroids.append(0)
-                array_of_similarities.append(0)
-            min_dst_centroids = min(i for i in distance_centroids if i > 0)
-            #if min_dst_centroids == 0:
-                #min_dst_centroids = 1
-            sum_of_similarities += (max(array_of_similarities) / min_dst_centroids)
+
+                    dissimilarity = math.inf
+                    pairs = list(itertools.product(cluster, clusterJ))
+                    for pair in pairs:
+                        if pair not in data.keys():
+                            pair = (pair[1], pair[0])
+                        dissimilarity_aux = float(data[pair])
+                        if dissimilarity_aux < dissimilarity:
+                            dissimilarity = dissimilarity_aux
+                    rij.append((s_i + s_j)/dissimilarity)
+
+
+            sum_of_similarities += (max(rij))
 
         db_improved_index[k] = sum_of_similarities / n_c
 
@@ -561,7 +605,15 @@ def dunn(clustering, data, centroids):
                 list_of_evals = []
                 if i+1 < len(clusters):
                     for j in range(i+1, len(clusters)):
-                        dissimilarity = abs(centroids[k][i] - centroids[k][j])
+                        dissimilarity = math.inf
+                        pairs = list(itertools.product(clusters[i], clusters[j]))
+                        for pair in pairs:
+                            if pair not in data.keys():
+                                pair = (pair[1], pair[0])
+                            dissimilarity_aux = float(data[pair])
+                            if dissimilarity_aux < dissimilarity:
+                                dissimilarity = dissimilarity_aux
+
                         list_of_evals.append(dissimilarity/max_diameter)
 
                     compare_clusters.append(min(list_of_evals))
