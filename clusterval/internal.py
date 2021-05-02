@@ -230,25 +230,22 @@ def s_dbw(clustering, data, distance_dict):
     variance_d = calculate_variance(data, [i for i in range(len(data))], centroid_dataset)
 
     for k, clusters in clustering.items():
+
         s_dbw_index[k] = scat(data, clusters['clusters'], clusters['centroids'], variance_d)\
-                         + dens_bw(clusters['clusters'], data, distance_dict, clusters['centroids'])
+                         + dens_bw(clusters['clusters'], data, clusters['centroids'])
 
     return s_dbw_index
 
 def calculate_variance(data, cluster, mean):
+    dist = sum(euclidean(data[el], mean) for el in cluster)
+    variance = dist / len(cluster)
 
-    variance = 0.0
-    for el in cluster:
-        dist = euclidean(data[el], mean)
-        variance += math.pow(dist, 2)
-
-    return variance / len(cluster)
+    return math.sqrt(variance)
 
 def scat(data, clusters, centroids, variance_d):
     #scat improved from BIB: New indices for cluster validity assessment - Kim
 
     variance_clusters = []
-
     for ci, cluster in enumerate(clusters):
         variance_ci = calculate_variance(data, cluster, centroids[ci])
         variance_clusters.append(variance_ci/variance_d)
@@ -256,33 +253,40 @@ def scat(data, clusters, centroids, variance_d):
     return max(variance_clusters)
 
 
-def dens_bw(clusters, data, distance_dict, centroids):
+def dens_bw(clusters, data, centroids):
 
     n_c = len(clusters)
     avg_std_deviation = avg_stdev(data, clusters, centroids)
-
     result_sum = 0.0
 
     for i, cluster in enumerate(clusters):
         if i == (n_c - 1):
             break
+        s = 0.0
         for j in range(i+1, n_c):
             u_ij = [(c_i + c_j)/2 for c_i,c_j in zip(centroids[i],centroids[j])]
             n_ij = cluster + clusters[j]
             dens_ij = density(data,n_ij, u_ij, avg_std_deviation)
-            dens_i = density(data,n_ij, centroids[i], avg_std_deviation)
-            dens_j = density(data,n_ij, centroids[j], avg_std_deviation)
+            dens_i = density(data,cluster, centroids[i], avg_std_deviation)
+            dens_j = density(data,clusters[j], centroids[j], avg_std_deviation)
 
-            res = dens_ij / max(dens_i, dens_j)
-            result_sum += res
+            if max(dens_i, dens_j) == 0:
+                #penalty for clusters with objects very far from center
+                res = 10.0
+            else:
+                res = dens_ij / max(dens_i, dens_j)
+            s += res
+
+        result_sum += s
 
     return result_sum / (n_c * (n_c - 1))
 
 
-def density(data, n_ij, center, avg_stdev):
+def density(data, cluster, center, avg_stdev):
 
     sum_density = 0
-    for el in n_ij:
+
+    for el in cluster:
         if euclidean(data[el], center) <= avg_stdev:
             sum_density += 1
 
@@ -292,12 +296,10 @@ def avg_stdev(data, clusters, centroids):
 
     average_stdev = 0.0
     for i, cluster in enumerate(clusters):
-        stdev = 0.0
-        for el in cluster:
-            dist = euclidean(data[el], centroids[i])
-            stdev += math.pow(dist, 2)
-        stdev = math.sqrt((stdev / len(cluster)))
-        average_stdev += stdev
+        dist = sum(euclidean(data[el], centroids[i]) for el in cluster)
+        stdev = dist / len(cluster)
+        #stdev = math.sqrt((dist / len(cluster)))
+        average_stdev += math.sqrt(stdev)
 
     return average_stdev / len(clusters)
 
@@ -314,34 +316,46 @@ def db_improved(clustering, data, distance_dict):
     db_improved_index = defaultdict(float)
     for k, clusters in clustering.items():
         n_c = len(clusters['clusters'])
+
+        dict_sim = defaultdict(float)
+
         sum_of_similarities = 0
         for i, cluster in enumerate(clusters['clusters']):
             if i == (n_c - 1):
-                continue
+                break
             rij = []
             distance_centroids = []
-            if len(cluster) == 0:
+            if dict_sim[str(i)]:
+                s_i = dict_sim[str(i)]
+            elif len(cluster) == 0:
                 raise ValueError("Empty clusters being formed. Set a lower value for max_k")
 
             elif len(cluster) == 1:
                 s_i = 0
+                dict_sim[str(i)] = s_i
             else:
                 s_i = similarity(cluster, data, clusters['centroids'][i])
+                dict_sim[str(i)] = s_i
+
             for j in range(i+1,n_c):
-                if len(clusters['clusters'][j]) == 0:
+                if dict_sim[str(j)]:
+                    s_j = dict_sim[str(j)]
+                elif len(clusters['clusters'][j]) == 0:
                     raise ValueError("Empty clusters being formed. Set a lower value for max_k")
 
                 elif len(clusters['clusters'][j]) == 1:
                     s_j = 0
+                    dict_sim[str(j)] = s_j
                 else:
                     s_j = similarity(clusters['clusters'][j], data, clusters['centroids'][j])
+                    dict_sim[str(j)] = s_j
 
                 dissimilarity = euclidean(clusters['centroids'][i], clusters['centroids'][j])
 
                 rij.append((s_i + s_j)/dissimilarity)
 
 
-            sum_of_similarities += (max(rij))
+            sum_of_similarities += max(rij)
 
         db_improved_index[k] = sum_of_similarities / n_c
 
@@ -349,9 +363,7 @@ def db_improved(clustering, data, distance_dict):
 
 def similarity(cluster, data, centroid):
 
-    result = 0
-    for el in cluster:
-        result += euclidean(data[el], centroid)
+    result = sum(euclidean(data[el], centroid) for el in cluster)
     sim = result / len(cluster)
     
     return sim
@@ -372,16 +384,20 @@ def silhouette(clustering, data, distance_dict):
         n_c = len(clusters['clusters'])
         sum_clusters_diff = 0
         for i, cluster in enumerate(clusters['clusters']):
-            if len(cluster) != 0:
-                sum_pairwise = 0
-                for el in cluster:
-                    b = silhouette_b([x for y, x in enumerate(clusters['clusters']) if i != y], el, distance_dict)
-                    a = silhouette_a(cluster, el, distance_dict)
-                    if max(a,b) == 0:
-                        sum_pairwise += (b - a)
-                    else:
-                        sum_pairwise += (b - a) / max(a,b)
-                sum_clusters_diff += sum_pairwise / len(cluster)
+            n_i = len(cluster)
+            if n_i == 0:
+                raise ValueError("Empty clusters being formed. Set a lower value for max_k")
+
+            sum_pairwise = 0
+            for el in cluster:
+                b = silhouette_b([x for y, x in enumerate(clusters['clusters']) if i != y], el, distance_dict)
+                a = silhouette_a([x for x in cluster if x != el], el, distance_dict)
+
+                if max(a,b) == 0:
+                    sum_pairwise += 0
+                else:
+                    sum_pairwise += ((b - a) / max(a,b))
+            sum_clusters_diff += sum_pairwise / n_i
 
         silhouette_index[k] = sum_clusters_diff / n_c
 
@@ -401,19 +417,19 @@ def silhouette_a(cluster, el, distance_dict):
     if n_i <= 1:
         result = sum_dist
     else:
-        result = sum_dist / (n_i - 1)
+        result = sum_dist / n_i
 
     return result
 
 def silhouette_b(clusters, el, distance_dict):
     array_of_between_clusters = []
     if len(clusters) == 0:
-        array_of_between_clusters.append(0)
+        raise ValueError("Empty clusters being formed. Set a lower value for max_k")
     for cluster in clusters:
         sum_dist_within = 0
         n_j = len(cluster)
         if n_j == 0:
-            array_of_between_clusters.append(0)
+            raise ValueError("Empty clusters being formed. Set a lower value for max_k")
         for c_j in cluster:
             pair = (el, c_j)
             if pair not in distance_dict.keys():
@@ -459,15 +475,32 @@ def dis(centers):
     Clusters centroids
     :return: float
     '''
-    centroids_pairs = list(itertools.combinations(centers, 2))
-    dist_lst = [abs(pair[0]-pair[1]) for pair in centroids_pairs]
+    #centroids_pairs = list(itertools.combinations(centers, 2))
 
-    d_max = max(dist_lst)
-    d_min = min(i for i in dist_lst if i > 0)
+    #dist = [euclidean(pair[0],pair[1]) for pair in centroids_pairs]
 
-    total = sum(dist_lst)
+    #d_max = max(dist)
+    #d_min = min(dist)
+    #total = 1/sum(dist)
 
-    return (d_max / d_min) * total
+    sum_total_dist = 0.0
+    d_max = 0.0
+    d_min = math.inf
+    for i, center in enumerate(centers):
+        if i == (len(centers) - 1):
+            break
+        sum_dist = 0.0
+        for j in range(i+1,len(centers)):
+            dist = euclidean(center, centers[j])
+            if dist > d_max:
+                d_max = dist
+            if dist < d_min:
+                d_min = dist
+            sum_dist += dist
+
+        sum_total_dist += (1/sum_dist)
+
+    return (d_max / d_min) * sum_total_dist
 
 
 def pbm(clustering, data, distance_dict):
@@ -485,29 +518,24 @@ def pbm(clustering, data, distance_dict):
 
     pbm_index = defaultdict(float)
 
-    center_distance_dictset = sum(pair for k, pair in distance_dict.items()) / len(distance_dict)
-    e_t = sum(abs(pair - center_distance_dictset) for k,pair in distance_dict.items())
-    e_w = 0
+    centroid_dataset = np.mean(data, axis=0)
+    all_elements = [i for i in range(len(data))]
+    e_t = sum(euclidean(data[el],centroid_dataset) for el in all_elements)
+
     for k, clusters in clustering.items():
-        comb_clusters = itertools.combinations(clusters['centroids'], 2)
-        max_dist_clusters = max(abs(dst[0] - dst[1]) for dst in comb_clusters)
+        sum_total_dist = 0.0
+        d_max = 0.0
+        e_c = 0.0
         for i, cluster in enumerate(clusters['clusters']):
-            sum_dist2center = 0
-            comb_pairs = list(itertools.combinations(cluster, 2))
-            for pair in comb_pairs:
-                if pair not in distance_dict:
-                    pair = (pair[1], pair[0])
-                d = abs(float(distance_dict[pair]) - clusters['centroids'][i])
-                sum_dist2center += d
-            e_w += sum_dist2center
+            e_c += sum(euclidean(data[el], clusters['centroids'][i]) for el in cluster)
+            if i == (len(clusters['clusters']) - 1):
+                break
+            for j in range(i + 1, len(clusters['clusters'])):
+                dist = euclidean(clusters['centroids'][i], clusters['centroids'][j])
+                if dist > d_max:
+                    d_max = dist
 
-        #if clause for the case with cluster with only one element
-        if e_w == 0:
-            dist2center = 1
-        else:
-            dist2center = e_t/e_w
-
-        pbm_index[k] = math.pow((1/len(clusters['clusters'])) * dist2center * max_dist_clusters, 2)
+        pbm_index[k] = math.pow((1/len(clusters['clusters'])) * (e_t/e_c) * d_max, 2)
 
     return pbm_index
 

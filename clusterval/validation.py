@@ -222,7 +222,7 @@ class Clusterval:
                 centroids = partition.cluster_centers_
 
             else:
-                raise ValueError('% is not an acceptable clustering algorithm, please choose \'hierarchical\' or \'kmeans\'',algorithm)
+                raise ValueError(algorithm + ' is not an acceptable clustering algorithm, please choose \'hierarchical\' or \'kmeans\'')
 
 
             # dictionary of clustering of each 'k', to be used in internal validation
@@ -354,7 +354,6 @@ class Clusterval:
         plt.xticks(size=40)
         plt.yticks(size=40)
         self._calculate_dendrogram(labels)
-
 
         plt.show()
 
