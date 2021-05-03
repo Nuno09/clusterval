@@ -475,13 +475,6 @@ def dis(centers):
     Clusters centroids
     :return: float
     '''
-    #centroids_pairs = list(itertools.combinations(centers, 2))
-
-    #dist = [euclidean(pair[0],pair[1]) for pair in centroids_pairs]
-
-    #d_max = max(dist)
-    #d_min = min(dist)
-    #total = 1/sum(dist)
 
     sum_total_dist = 0.0
     d_max = 0.0
@@ -535,7 +528,7 @@ def pbm(clustering, data, distance_dict):
                 if dist > d_max:
                     d_max = dist
 
-        pbm_index[k] = math.pow((1/len(clusters['clusters'])) * (e_t/e_c) * d_max, 2)
+        pbm_index[k] = math.pow((1/k) * (e_t/e_c) * d_max, 2)
 
     return pbm_index
 
@@ -554,48 +547,40 @@ def dunn(clustering, data, distance_dict):
     dunn_index = defaultdict(float)
 
     for k, clusters in clustering.items():
-        
-        size = len(clusters['clusters'])
-        #for the case in which there is only one object in the cluster
-        if size < 2:
-            dunn_index[k] = 0
 
-        else:
+        #get maximum diameter among all clusters
+        diameter_all = []
+        for c in clusters['clusters']:
+            if len(c) >= 2:
+                pairs = list(itertools.combinations(c, 2))
+                distances = []
+                for pair in pairs:
+                    if pair not in distance_dict.keys():
+                        pair = (pair[1], pair[0])
+                    distances.append(float(distance_dict[pair]))
 
-            #step for calculating max diameter of clustering
-            diameter_all = []
-            for c in clusters['clusters']:
-                if len(c) >= 2:
-                    pairs = list(itertools.combinations(c, 2))
-                    distances = []
-                    for pair in pairs:
-                        if pair not in distance_dict.keys():
-                            pair = (pair[1], pair[0])
-                        distances.append(float(distance_dict[pair]))
+                diameter_all.append(max(distances))
 
-                    diameter_all.append(max(distances))
+        max_diameter = max(diameter_all)
 
-            max_diameter = max(diameter_all)
+        compare_clusters = []
+        for i, cluster in enumerate(clusters['clusters']):
+            if i == (k - 1):
+                break
+            dist_between_clusters = []
+            for j in range(i+1, k):
+                elements = list(itertools.product(cluster, clusters['clusters'][j]))
+                min_dist = math.inf
+                for pair in elements:
+                    if pair not in distance_dict.keys():
+                        pair = (pair[1], pair[0])
+                    dist = float(distance_dict[pair])
+                    if dist < min_dist:
+                        min_dist = dist
+                dist_between_clusters.append(min_dist / max_diameter)
 
-            compare_clusters = []
-            for i in range(size):
-                list_of_evals = []
-                if i+1 < size:
-                    for j in range(i+1, size):
-                        dissimilarity = math.inf
-                        pairs = list(itertools.product(clusters[i], clusters[j]))
-                        for pair in pairs:
-                            if pair not in distance_dict.keys():
-                                pair = (pair[1], pair[0])
-                            dissimilarity_aux = float(distance_dict[pair])
-                            if dissimilarity_aux < dissimilarity:
-                                dissimilarity = dissimilarity_aux
+            compare_clusters.append(min(dist_between_clusters))
 
-                        list_of_evals.append(dissimilarity/max_diameter)
-
-                    compare_clusters.append(min(list_of_evals))
-
-
-            dunn_index[k] = min(compare_clusters)
+        dunn_index[k] = min(compare_clusters)
 
     return dunn_index

@@ -13,6 +13,7 @@ def calculate_external(partition_a, partition_b, indices=['all']):
     # size of contigency table
     R = len(partition_a)
     C = len(partition_b)
+
     # contigency table
     contigency_table = np.zeros((R + 1, C + 1))
     # fill the contigency table
@@ -25,6 +26,7 @@ def calculate_external(partition_a, partition_b, indices=['all']):
                 contigency_table[i][j] = contigency_table[:, j].sum()
 
         contigency_table[i][j + 1] = contigency_table[i].sum()
+
     N = contigency_table[R][C]
     # condensed information of ct into a mismatch matrix (pairwise agreement)
     sum_all_squared = np.sum(contigency_table[0:R][:, range(0, C)] ** 2)
@@ -36,20 +38,21 @@ def calculate_external(partition_a, partition_b, indices=['all']):
     a = 0
     for i in range(0, R):
         for j in range(0, C):
-            a = a + contigency_table[i][j] * (contigency_table[i][j] - 1)
+            a += contigency_table[i][j] * (contigency_table[i][j] - 1)
     a = a / 2
     # computing the number of pair in the same cluster in partition A but in different cluster in partition B
-    b = (sum_R_squared - sum_all_squared) / 2
+    b = ((N**2) + sum_all_squared - (sum_R_squared + sum_C_squared)) / 2
     # computing the number of pair in different cluster in partition A but in the same cluster in partition B
     c = (sum_C_squared - sum_all_squared) / 2
     # computing the number of pairs in different cluster both in partition A and partition B
-    d = (N ** 2 + sum_all_squared - (sum_R_squared + sum_C_squared)) / 2
+    d = (sum_R_squared - sum_all_squared    ) / 2
 
     M = (a + b + c + d)
 
-    indices_funcs = {'R': rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
-            'VD': van_dongen, 'H': hubert, 'H\'': hubert_normalized, 'F': f_measure,
-            'VI': variation_information, 'MS': minkowski}
+    indices_funcs = {'R': rand, 'AR': adjusted_rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
+                     'VD': van_dongen, 'H': hubert_normalized, 'F': f_measure,
+                     'VI': variation_information, 'MS': minkowski, 'CD': Czekanowski_Dice, 'K': Kulczynski,
+                     'Phi': Phi, 'RT': Rogers_Tanimoto, 'RR': Russel_Rao, 'SS': Sokal_Sneath}
     results = defaultdict()
 
     if isinstance(indices, str):
@@ -59,14 +62,14 @@ def calculate_external(partition_a, partition_b, indices=['all']):
         if index == 'all' or index == 'external':
             for cvi, func in indices_funcs.items():
                 if cvi in ['AR', 'AW']:
-                    results[cvi] = func(a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N)
+                    results[cvi] = func(a, b, c, d, sum_C, sum_R_squared, sum_C_squared, sum_all_squared, N)
                 elif cvi in ['VD', 'VI']:
                     results[cvi] = func(contigency_table, R, C, N)
                 else:
                     results[cvi] = func(a, b, c, d, M)
         elif index in indices_funcs.keys():
             if index in ['AR', 'AW']:
-                results[index] = indices_funcs[index](a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N)
+                results[index] = indices_funcs[index](a, b, c, d, sum_C,  sum_R_squared, sum_C_squared, sum_all_squared, N)
             elif index in ['VD', 'VI']:
                 results[index] = indices_funcs[index](contigency_table, R, C, N)
             else:
@@ -80,11 +83,18 @@ def calculate_external(partition_a, partition_b, indices=['all']):
 def rand(a, b, c, d, M):
     return (a + d) / M
 
+def adjusted_rand(a, b , c, d, sum_C, sum_R_squared, sum_C_squared, sum_all_squared, N):
+    nc = ((N*(math.pow(N, 2) + 1)) - ((N + 1)*sum_R_squared) - ((N + 1)*sum_C_squared) + (sum_all_squared / N)) / 2*(N - 1)
+
+    adjusted_rand_index = (a + d - nc) / (a + b + c + d - nc)
+
+    return adjusted_rand_index
+
 def fowlkes_mallows(a, b, c, d, M):
     if ((a + b) == 0 or (a + c) == 0):
         FM = 0
     else:
-        FM = math.sqrt((a/(a + b)) * (a/(a + c)))
+        FM = a/math.sqrt(((a + b)) * ((a + c)))
 
     return FM
 
@@ -96,7 +106,7 @@ def jaccard(a, b, c, d, M):
 
     return jaccard
 
-def adjusted_wallace(a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N):
+def adjusted_wallace(a, b, c, d, sum_C, sum_R_squared, sum_C_squared, sum_all_squared, N):
     if ((a + b) == 0):
         wallace = 0
     else:
@@ -110,21 +120,14 @@ def adjusted_wallace(a, b, sum_R_squared, sum_R, sum_C_squared, sum_C, N):
     return adjusted_wallace_index
 
 def van_dongen(contigency_table, R, C, N):
-    VD_i = 0
-    VD_j = 0
 
-    for i in range(0, R):
-        VD_i += max(contigency_table[i, 0:C])
-    for j in range(0, C):
-        VD_j += max(contigency_table[0:R, j])
+    VD_i = np.sum(max(contigency_table[i, 0:C]) for i in range(R))
+    VD_j = np.sum(max(contigency_table[0: R, j]) for j in range(C))
 
-    van_dongen_index = ((2 * N) - VD_i - VD_j) / (2 * N)
+    van_dongen_index = ((2 * N) - VD_i - VD_j)/ 2*N
 
     return van_dongen_index
 
-def hubert(a, b, c, d, M):
-    #return (M - 2*b - 2*c) / M
-    return a / M
 
 def hubert_normalized(a, b, c, d, M):
 
@@ -180,8 +183,36 @@ def minkowski(a, b, c, d, M):
     return MS
 
 
+def Czekanowski_Dice(a, b, c, d, M):
+
+    return 2*a / 2*a + b + c
+
+def Kulczynski(a, b, c, d, M):
+
+    c = (a / (a + c)) + (a / (a + b))
+
+    return 1/2 * c
 
 
+def Phi(a, b, c, d, M):
 
+    c1 = (a * d) - (b * c)
+    c2 = (a + b)*(a + c)*(b + d)*(c + d)
+
+    if c2 == 0:
+        c = 0
+    else:
+        c = c1 / c2
+    return c
+
+def Rogers_Tanimoto(a, b, c, d, M):
+
+    return (a + d) / (a + d + 2*(b + c))
+
+def Russel_Rao(a,b,c,d,M):
+    return a/M
+
+def Sokal_Sneath(a,b,c,d,M):
+    return a / (a + 2*(b+c))
 
 
