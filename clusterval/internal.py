@@ -230,7 +230,6 @@ def s_dbw(clustering, data, distance_dict):
     variance_d = calculate_variance(data, [i for i in range(len(data))], centroid_dataset)
 
     for k, clusters in clustering.items():
-
         s_dbw_index[k] = scat(data, clusters['clusters'], clusters['centroids'], variance_d)\
                          + dens_bw(clusters['clusters'], data, clusters['centroids'])
 

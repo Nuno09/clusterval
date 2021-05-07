@@ -8,8 +8,6 @@ Validation can be done with external or internal indices, or both.
 
 from scipy.cluster.hierarchy import dendrogram, linkage, fcluster, cut_tree
 from scipy.spatial.distance import pdist
-from sympy.solvers import solve
-from sympy import Symbol
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestCentroid
 import random
@@ -32,8 +30,8 @@ class Clusterval:
     max_k: int, optional
     maximum number of clusters to test. Default 8.
 
-    link: str, optional
-    linkage method to use. Accepts 'single', 'ward'(default), 'complete', 'centroid', 'average'
+    algorithm: str, optional
+    clustering algorithm to use. Accepts 'single', 'ward'(default), 'complete', 'centroid', 'average' and 'kmeans
 
     bootstrap_samples: int, optional
     number of bootstrap samples simulated. Default 250
@@ -44,17 +42,21 @@ class Clusterval:
            'H\'', 'F', 'VI', 'MS', 'CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']. Default 'all'.
     """
 
-    def __init__(self, min_k=2, max_k=8, link='ward', bootstrap_samples=250, index='all'):
+    def __init__(self, min_k=2, max_k=8, algorithm='ward', bootstrap_samples=250, index='all'):
 
-        external_indices = ['R', 'FM', 'J', 'AW', 'VD', 'H', 'H\'', 'F', 'VI', 'MS']
+        external_indices = ['AR', 'FM', 'J', 'AW', 'VD', 'H', 'F', 'VI', 'CD', 'K', 'Phi', 'RT', 'SS']
+
         internal_indices = ['CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']
+
         min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB', 'S_Dbw', 'DB', 'SD']
-        indices = {'R': ['R'], 'AR': ['AR'], 'FM': ['FM'], 'J': ['J'], 'AW': ['AW'],
-                   'VD': ['VD'], 'H': ['H'], 'H\'': ['H\''], 'F': ['F'],
-                   'VI': ['VI'], 'MS': ['MS'], 'CVNN': ['CVNN'], 'XB': ['XB'],
-                   'S_Dbw': ['S_Dbw'], 'DB': ['DB'], 'S': ['S'], 'SD': ['SD'],
+
+        indices = {'AR': ['AR'], 'FM': ['FM'], 'J': ['J'], 'AW': ['AW'], 'VD': ['VD'], 'H': ['H'],
+                   'F': ['F'], 'CD': ['CD'], 'K': ['K'], 'Phi': ['Phi'], 'RT': ['RT'], 'SS': ['SS'],
+                   'VI': ['VI'], 'CVNN': ['CVNN'], 'XB': ['XB'],
+                   'S_Dbw': ['S_Dbw'], 'DB': ['DB'], 'S': ['S'], 'SD': ['SD'],'PBM': ['PBM'], 'Dunn': ['Dunn'],
                    'all': external_indices + internal_indices, 'external': external_indices,
-                   'internal': internal_indices, 'PBM': ['PBM'], 'Dunn': ['Dunn']}
+                   'internal': internal_indices
+                   }
 
 
         if isinstance(index, str):
@@ -69,11 +71,10 @@ class Clusterval:
         self._internal_indices = internal_indices
         self._min_indices = min_indices
         self._indices = indices
-        self._algorithm = None
 
         self.min_k = min_k
         self.max_k = max_k
-        self.link = link
+        self.algorithm = algorithm
         self.bootstrap_samples = bootstrap_samples
         self.index = index
 
@@ -172,7 +173,7 @@ class Clusterval:
         return choices_dict
 
 
-    def evaluate(self, data, algorithm='hierarchical'):
+    def evaluate(self, data):
         """
         Perform hierarchical clustering or Kmeans clustering on the dataset and calculate the validation indices
         :param data: array-like, n_samples x n_features
@@ -188,7 +189,6 @@ class Clusterval:
         # dictionary with all mean values of the metrics for every k
         choices_dict = defaultdict(list)
         self.count_choice = defaultdict(int)
-        self._algorithm = algorithm
         results = {k: {} for k in range(self.min_k, self.max_k + 1)}
         # build dictionaries that hold the calculations
         for k in range(self.min_k, self.max_k + 1):
@@ -196,33 +196,43 @@ class Clusterval:
                 for index in self._indices[metrics]:
                     results[k][index] = []
 
-        if algorithm == 'hierarchical':
-            self.Z = linkage(data, self.link)
+        if self.algorithm in ['ward', 'single', 'complete', 'average', 'centroid']:
+            self.Z = linkage(data, self.algorithm)
 
         for k in range(self.min_k, self.max_k + 1):
 
-            if algorithm == 'hierarchical':
+            if self.algorithm in ['ward', 'single', 'complete', 'average', 'centroid']:
                 # builds a list of the hierarchical clusters
 
-                #with fcluster
-                #clusters = self._cluster_indices(fcluster(self.Z, t=k, criterion='maxclust'), [i for i in range(0, len(data))])
+                # with cut_tree
+                partition = cut_tree(self.Z, n_clusters=k)
 
-                #with cut_tree
-                partition = cut_tree(self.Z, k)
                 clusters = self._cluster_indices(partition, [i for i in range(0, len(data))])
                 clf = NearestCentroid()
-                clf.fit(data, list(itertools.chain.from_iterable(partition)))
+
+                try:
+                    clf.fit(data, list(itertools.chain.from_iterable(partition)))
+
+                #if only one cluster formed, try with fcluster - this happened with centroid
+                except ValueError as e:
+                    if isinstance(e, ValueError):
+                        partition = fcluster(self.Z, t=k, criterion='maxclust')
+                        clusters = self._cluster_indices(partition, [i for i in range(0, len(data))])
+                        clf.fit(data, list(itertools.chain(partition)))
+
                 centroids = clf.centroids_
 
 
 
-            elif algorithm == 'kmeans':
+
+            elif self.algorithm == 'kmeans':
                 partition = KMeans(n_clusters=k, random_state=0).fit(data)
                 clusters = self._cluster_indices(partition.labels_, [i for i in range(0, len(data))])
                 centroids = partition.cluster_centers_
 
             else:
-                raise ValueError(algorithm + ' is not an acceptable clustering algorithm, please choose \'hierarchical\' or \'kmeans\'')
+                raise ValueError(self.algorithm + ' is not an acceptable clustering algorithm, please choose \'single\','
+                                                  ' \'ward\', \'centroid\', \'complete\', \'average\' or \'kmeans\'')
 
 
             # dictionary of clustering of each 'k', to be used in internal validation
@@ -233,8 +243,8 @@ class Clusterval:
                 for i in range(self.bootstrap_samples):
                     sample = random.sample(list(data), int(3 / 4 * len(data)))
 
-                    if algorithm == 'hierarchical':
-                        Z_sample = linkage(sample, self.link)
+                    if self.algorithm in ['ward', 'single', 'complete', 'average', 'centroid']:
+                        Z_sample = linkage(sample, self.algorithm)
 
                         #clusters_sample = self._cluster_indices(fcluster(Z_sample, t=k, criterion='maxclust'), [i for i in range(0, len(sample))])
 
@@ -277,7 +287,7 @@ class Clusterval:
                 final_k = key
         self.final_k = int(final_k)
 
-        if algorithm == 'hierarchical':
+        if self.algorithm in ['ward', 'single', 'complete', 'average', 'centroid']:
             #self.final_clusters = fcluster(self.Z, t=self.final_k, criterion='maxclust')
             self.final_clusters = np.concatenate(np.asarray(cut_tree(self.Z, self.final_k)))
         else:
@@ -291,11 +301,11 @@ class Clusterval:
         print detailed information on the clustering results conclusion
         :return: str with the results
         '''
-        output_str = '\n* Linkage criteria is: ' + self.link + '\n'
-        output_str += '* Minimum number of clusters to test: ' + str(self.min_k) + '\n'
+
+        output_str = '* Minimum number of clusters to test: ' + str(self.min_k) + '\n'
         output_str += '* Maximum number of clusters to test: ' + str(self.max_k) + '\n'
         output_str +='* Number of bootstrap samples generated: ' + str(self.bootstrap_samples) + '\n'
-        output_str += '* Clustering algorithm used: ' + str(self._algorithm) + '\n'
+        output_str += '* Clustering algorithm used: ' + str(self.algorithm) + '\n'
 
         output_str +='\n* Validation Indices calculated: ' + str(self.index) + '\n\n'
 
@@ -334,7 +344,7 @@ class Clusterval:
             # truncate_mode = 'lastp',
             # p=6,
             leaf_rotation=90.,  # rotates the x axis labels
-            leaf_font_size=10.,  # font size for the x axis labels
+            leaf_font_size=10,  # font size for the x axis labels
             labels=labels
         )
 
@@ -347,7 +357,7 @@ class Clusterval:
         '''
 
         fig = plt.figure(figsize=(40, 20))
-        plt.title('Hierarchical Clustering Dendrogram - Linkage: %s, Metrics: %s' % (self.link, str(self.index)),
+        plt.title('Hierarchical Clustering Dendrogram - Linkage: %s, Metrics: %s' % (self.algorithm, str(self.index)),
                   fontsize=30)
         plt.xlabel('data point index', labelpad=20, fontsize=30)
         plt.ylabel('distance', labelpad=10, fontsize=30)

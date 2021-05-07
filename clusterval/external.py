@@ -49,10 +49,10 @@ def calculate_external(partition_a, partition_b, indices=['all']):
 
     M = (a + b + c + d)
 
-    indices_funcs = {'R': rand, 'AR': adjusted_rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
+    indices_funcs = {'AR': adjusted_rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
                      'VD': van_dongen, 'H': hubert_normalized, 'F': f_measure,
-                     'VI': variation_information, 'MS': minkowski, 'CD': Czekanowski_Dice, 'K': Kulczynski,
-                     'Phi': Phi, 'RT': Rogers_Tanimoto, 'RR': Russel_Rao, 'SS': Sokal_Sneath}
+                     'VI': variation_information, 'CD': Czekanowski_Dice, 'K': Kulczynski,
+                     'Phi': Phi, 'RT': Rogers_Tanimoto, 'SS': Sokal_Sneath}
     results = defaultdict()
 
     if isinstance(indices, str):
@@ -78,10 +78,6 @@ def calculate_external(partition_a, partition_b, indices=['all']):
     return results
 
 
-
-
-def rand(a, b, c, d, M):
-    return (a + d) / M
 
 def adjusted_rand(a, b , c, d, sum_C, sum_R_squared, sum_C_squared, sum_all_squared, N):
     nc = ((N*(math.pow(N, 2) + 1)) - ((N + 1)*sum_R_squared) - ((N + 1)*sum_C_squared) + (sum_all_squared / N)) / 2*(N - 1)
@@ -150,6 +146,7 @@ def f_measure(a, b, c, d, M):
 
 def variation_information(contigency_table, R, C, N):
     mutual_info = 0
+    mutual_info_aux = 0
     entropy_C = 0
     entropy_P = 0
     flag_entropy = 0
@@ -157,30 +154,23 @@ def variation_information(contigency_table, R, C, N):
         # calculation for entropy
         p_i = contigency_table[i][-1] / N
         if p_i != 0:
-            entropy_C = entropy_C + (p_i * math.log2(p_i))
+            entropy_C += (p_i * math.log10(p_i))
         for j in range(C):
             if flag_entropy == 0:
                 # calculation for entropy
                 p = contigency_table[-1][j] / N
                 if p != 0:
-                    entropy_P = entropy_P + (p * math.log2(p))
+                    entropy_P += (p * math.log10(p))
             p_ij = contigency_table[i][j] / N
             p_j = contigency_table[-1][j] / N
             if not 0 in [p_ij, p_i, p_j]:
-                mutual_info = mutual_info + (p_ij * math.log2(p_ij / (p_i * p_j)))
+                mutual_info_aux += (p_ij * math.log10(p_ij / (p_i * p_j)))
         flag_entropy = 1
+        mutual_info += mutual_info_aux
 
     VI = -entropy_C - entropy_P - (2 * mutual_info)
 
     return VI
-
-def minkowski(a, b, c, d, M):
-    if c == 0:
-        MS = 0
-    else:
-        MS = math.sqrt(b + c + (2*a)) / math.sqrt(c)
-
-    return MS
 
 
 def Czekanowski_Dice(a, b, c, d, M):
@@ -191,7 +181,7 @@ def Kulczynski(a, b, c, d, M):
 
     c = (a / (a + c)) + (a / (a + b))
 
-    return 1/2 * c
+    return c/2
 
 
 def Phi(a, b, c, d, M):
@@ -209,10 +199,9 @@ def Rogers_Tanimoto(a, b, c, d, M):
 
     return (a + d) / (a + d + 2*(b + c))
 
-def Russel_Rao(a,b,c,d,M):
-    return a/M
 
 def Sokal_Sneath(a,b,c,d,M):
+
     return a / (a + 2*(b+c))
 
 
