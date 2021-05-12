@@ -5,8 +5,10 @@ import pytest
 import numpy as np
 
 from sklearn.datasets import load_iris, make_blobs
-from sklearn.cluster import AgglomerativeClustering
-from scipy.cluster.hierarchy import linkage
+from fastcluster import linkage
+from scipy.cluster.hierarchy import cut_tree
+from sklearn.neighbors import NearestCentroid
+import itertools
 
 
 iris = load_iris()
@@ -17,11 +19,15 @@ c.evaluate(data)
 
 def test_basic_run():
 
-    aclust = AgglomerativeClustering(n_clusters=4)
-    y = aclust.fit_predict(data)
-    clusters = c._cluster_indices(y, [i for i in range(0, len(data))])
-    clustering = {4: clusters}
-    r = clusterval.calculate_internal(c._distance_dict(data), clustering, indices='S_Dbw, S')
+    Z = linkage(data, method=c.algorithm)
+    partition = cut_tree(Z, n_clusters=4)
+    clusters = c._cluster_indices(partition, [i for i in range(0, len(data))])
+    clf = NearestCentroid()
+    clf.fit(data, list(itertools.chain.from_iterable(partition)))
+    centroids = clf.centroids_
+    clustering = {4: {'clusters': clusters, 'centroids': centroids}}
+    distances,_ = c._distance_dict(data)
+    r = clusterval.calculate_internal(data, distances , clustering, indices='S_Dbw, S')
 
     assert r['S_Dbw'][4] == c.output_df.loc[4, 'S_Dbw']
     assert r['S'][4] == c.output_df.loc[4, 'S']
@@ -46,13 +52,13 @@ def test_method_mix():
 
 def test_distances_pairs():
     c5 = clusterval.Clusterval()
-    distance = c5._distance_dict(data)
+    distance,_ = c5._distance_dict(data)
     for pair in distance:
         opposite_pair = (pair[1], pair[0])
         assert opposite_pair not in distance.keys()
 
 def test_dendrogram_plotting():
-    c.Z = linkage(iris['data'], c.link)
+    c.Z = linkage(iris['data'], c.algorithm)
     labels = np.random.rand(1, iris['data'].shape[0])[0]
     c.dendrogram = c._calculate_dendrogram(labels)
     assert len(labels) == len(c.dendrogram['ivl'])
