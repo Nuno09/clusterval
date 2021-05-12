@@ -6,17 +6,19 @@ Validation can be done with external or internal indices, or both.
 """
 
 
-from scipy.cluster.hierarchy import dendrogram, linkage, fcluster, cut_tree
+from scipy.cluster.hierarchy import dendrogram, fcluster, cut_tree
+from fastcluster import linkage
 from scipy.spatial.distance import pdist
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestCentroid
-import random
 from statistics import mean
 import pandas as pd
-import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import itertools
+import numpy as np
+import math
+import random
 
 from clusterval.internal import calculate_internal
 from clusterval.external import calculate_external
@@ -38,20 +40,22 @@ class Clusterval:
 
     index: list of str or str, optional
     what indices to be calculated. Accepts 'all' to calculate all, 'internal' to calculate only internal indices,
-     'external' to calculate external indices, or one of [R', 'FM', 'J', 'AW', 'VD', 'H',
-           'H\'', 'F', 'VI', 'MS', 'CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']. Default 'all'.
+     'external' to calculate external indices, or one of ['AR', 'FM', 'J', 'AW', 'VD', 'H', 'F', 'VI', 'K', 'Phi', 'RT', 'SS',
+     'CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']. Default 'all'.
     """
 
     def __init__(self, min_k=2, max_k=8, algorithm='ward', bootstrap_samples=250, index='all'):
 
-        external_indices = ['AR', 'FM', 'J', 'AW', 'VD', 'H', 'F', 'VI', 'CD', 'K', 'Phi', 'RT', 'SS']
+        external_indices = ['AR', 'FM', 'J', 'AW', 'VD', 'H', 'F', 'VI', 'K', 'Phi', 'RT', 'SS']
 
         internal_indices = ['CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']
 
         min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB', 'S_Dbw', 'DB', 'SD']
 
+        idx_distance_matrix = ['XB', 'S_Dbw', 'DB', 'SD', 'PBM']
+
         indices = {'AR': ['AR'], 'FM': ['FM'], 'J': ['J'], 'AW': ['AW'], 'VD': ['VD'], 'H': ['H'],
-                   'F': ['F'], 'CD': ['CD'], 'K': ['K'], 'Phi': ['Phi'], 'RT': ['RT'], 'SS': ['SS'],
+                   'F': ['F'], 'K': ['K'], 'Phi': ['Phi'], 'RT': ['RT'], 'SS': ['SS'],
                    'VI': ['VI'], 'CVNN': ['CVNN'], 'XB': ['XB'],
                    'S_Dbw': ['S_Dbw'], 'DB': ['DB'], 'S': ['S'], 'SD': ['SD'],'PBM': ['PBM'], 'Dunn': ['Dunn'],
                    'all': external_indices + internal_indices, 'external': external_indices,
@@ -71,6 +75,7 @@ class Clusterval:
         self._internal_indices = internal_indices
         self._min_indices = min_indices
         self._indices = indices
+        self._idx_distance_matrix = idx_distance_matrix
 
         self.min_k = min_k
         self.max_k = max_k
@@ -78,8 +83,9 @@ class Clusterval:
         self.bootstrap_samples = bootstrap_samples
         self.index = index
 
-        columns = [self._indices[i][0] for i in self.index]
-
+        columns = []
+        for i in self.index:
+            columns = columns + self._indices[i]
         self.output_df = pd.DataFrame(
             index=range(self.min_k, self.max_k + 1),
             columns=columns,
@@ -130,8 +136,8 @@ class Clusterval:
         :param idx: array with indices
         :return: array of clusters
         '''
-        import numpy as np
-        n = cluster_assignments.max()
+
+        n = int(cluster_assignments.max())
         clusters = []
         for cluster_number in range(0, n + 1):
             aux = np.where(cluster_assignments == cluster_number)[0].tolist()
@@ -146,58 +152,96 @@ class Clusterval:
         :param data: ndarray m * (m - 1)) // 2 like returned by pdist
         :return: dictionary of tuples
         """
-
-        pairwise_distances = pdist(data)
-
         from itertools import combinations
+        from sympy import Symbol, solve
 
-        comb = list(combinations([i for i in range(0, len(data))], 2))
+        diss_matrix = False
+        #check if distances already calculated
+        if data.ndim == 1:
+            pairwise_distances = [i for i in data]
+
+            x = Symbol('x')
+            n = solve(x ** 2 - x - 2*data.shape[0])[1]
+
+            diss_matrix = True
+
+        else:
+            pairwise_distances = pdist(data)
+            n = len(data)
+
+        comb = list(combinations([i for i in range(0, n)], 2))
         dist_dict = defaultdict(float)
 
         for pair, dist in zip(comb,pairwise_distances):
             dist_dict[pair] = dist
 
-        return dist_dict
+        return dist_dict, diss_matrix
 
     def _choose(self, choices_dict):
 
         for metrics in self.index:
             for metric in self._indices[metrics]:
-                if metric in self._min_indices:
-                    value = self.output_df.loc[self.output_df[metric].idxmin()]
+                if metric in self.output_df.columns.values:
+                    if metric in self._min_indices:
+                        value = self.output_df.loc[self.output_df[metric].idxmin()]
 
-                else:
-                    value = self.output_df.loc[self.output_df[metric].idxmax()]
-                choices_dict[metric] = [value.name, value[metric]]
+                    else:
+                        value = self.output_df.loc[self.output_df[metric].idxmax()]
+                    choices_dict[metric] = [value.name, value[metric]]
 
         return choices_dict
 
 
+
+
     def evaluate(self, data):
         """
-        Perform hierarchical clustering or Kmeans clustering on the dataset and calculate the validation indices
-        :param data: array-like, n_samples x n_features
-        :param algorithm: clustering algorithm to use (hierarchical or kmeans)
+        Perform hierarchical clustering or Kmeans clustering on the data and calculate the validation indices
+        :param data: array-like, n_samples x n_features or 1-d dissimilarity array
         Dataset to cluster
         :return: Clusterval object
         """
 
+        columns = []
+        for i in self.index:
+            columns = columns + self._indices[i]
+        self.output_df = pd.DataFrame(
+            index=range(self.min_k, self.max_k + 1),
+            columns=columns,
+            dtype=np.float64
+        )
+        #convert data to numpy array
+        data = np.array(data)
         #build dictionary with pairwise distances
-        distances = self._distance_dict(data)
+        distances, diss_matrix = self._distance_dict(data)
+
+        for metrics in self.index:
+            for idx in self._indices[metrics]:
+                if (diss_matrix) and (idx in self._idx_distance_matrix):
+                    self.output_df = self.output_df.drop([idx], axis=1)
 
         clustering = defaultdict(dict)
         # dictionary with all mean values of the metrics for every k
         choices_dict = defaultdict(list)
         self.count_choice = defaultdict(int)
         results = {k: {} for k in range(self.min_k, self.max_k + 1)}
+
         # build dictionaries that hold the calculations
+
         for k in range(self.min_k, self.max_k + 1):
             for metrics in self.index:
-                for index in self._indices[metrics]:
-                    results[k][index] = []
+                for idx in self._indices[metrics]:
+                    if (diss_matrix) and (idx in self._idx_distance_matrix):
+                        continue
+
+                    else:
+                        results[k][idx] = []
+        if not any(self.output_df.columns.values):
+            raise  ValueError('No CVIs being evaluated. If inputing distance matrix, please be aware that SD, XB, S_Dbw, PBM and DB are not possible to calculate.')
 
         if self.algorithm in ['ward', 'single', 'complete', 'average', 'centroid']:
-            self.Z = linkage(data, self.algorithm)
+            self.Z = linkage(data, method=self.algorithm)
+
 
         for k in range(self.min_k, self.max_k + 1):
 
@@ -206,26 +250,31 @@ class Clusterval:
 
                 # with cut_tree
                 partition = cut_tree(self.Z, n_clusters=k)
-
                 clusters = self._cluster_indices(partition, [i for i in range(0, len(data))])
                 clf = NearestCentroid()
 
-                try:
-                    clf.fit(data, list(itertools.chain.from_iterable(partition)))
+                if not diss_matrix:
+                    try:
+                        clf.fit(data, list(itertools.chain.from_iterable(partition)))
 
-                #if only one cluster formed, try with fcluster - this happened with centroid
-                except ValueError as e:
-                    if isinstance(e, ValueError):
-                        partition = fcluster(self.Z, t=k, criterion='maxclust')
-                        clusters = self._cluster_indices(partition, [i for i in range(0, len(data))])
-                        clf.fit(data, list(itertools.chain(partition)))
+                    #if only one cluster formed, try with fcluster - this happened with centroid
+                    except ValueError as e:
+                        if isinstance(e, ValueError):
+                            partition = fcluster(self.Z, t=k, criterion='maxclust')
+                            clusters = self._cluster_indices(partition, [i for i in range(0, len(data))])
+                            clf.fit(data, list(itertools.chain(partition)))
 
-                centroids = clf.centroids_
-
+                    centroids = clf.centroids_
+                else:
+                    centroids = None
 
 
 
             elif self.algorithm == 'kmeans':
+
+                if diss_matrix:
+                    raise ValueError('k-means does not work with only pairwise distances as input. Please set another algorithm.')
+
                 partition = KMeans(n_clusters=k, random_state=0).fit(data)
                 clusters = self._cluster_indices(partition.labels_, [i for i in range(0, len(data))])
                 centroids = partition.cluster_centers_
@@ -242,13 +291,24 @@ class Clusterval:
                 # external validation step
                 for i in range(self.bootstrap_samples):
                     sample = random.sample(list(data), int(3 / 4 * len(data)))
+                    #check if combinations are good in case of data == distance matrix
+                    if diss_matrix:
+                        NN = len(sample)
+                        N = int(math.ceil(math.sqrt(NN*2)))
+                        comb = (N*(N-1)//2)
+                        if comb != NN:
+                            sample = sample[:-(abs(comb - NN))]
 
                     if self.algorithm in ['ward', 'single', 'complete', 'average', 'centroid']:
-                        Z_sample = linkage(sample, self.algorithm)
+
+                        Z_sample = linkage(sample, method=self.algorithm)
 
                         #clusters_sample = self._cluster_indices(fcluster(Z_sample, t=k, criterion='maxclust'), [i for i in range(0, len(sample))])
 
                         clusters_sample = self._cluster_indices(cut_tree(Z_sample, k), [i for i in range(0, len(sample))])
+
+                    elif diss_matrix:
+                        raise ValueError('k-means does not work with only pairwise distances as input. Please set another algorithm.')
 
                     else:
                         clusters_sample = self._cluster_indices(KMeans(n_clusters=k, random_state=0).fit(sample).labels_, [i for i in range(0, len(sample))])
@@ -263,7 +323,11 @@ class Clusterval:
             # dictionary of distance between pairs of data points, e.g, {(pair1,pair2) : dist(pair1,pair2)}
 
             # internal validation step
-            internal = calculate_internal(data, distances, clustering, indices=self.index)
+            if diss_matrix:
+                internal = calculate_internal(data, distances, clustering, indices=['CVNN','S','Dunn'])
+            else:
+                internal = calculate_internal(data, distances, clustering, indices=self.index)
+
             for cvi, k_clust in internal.items():
                 for n_c, val in k_clust.items():
                     results[n_c][cvi] = val
@@ -307,7 +371,12 @@ class Clusterval:
         output_str +='* Number of bootstrap samples generated: ' + str(self.bootstrap_samples) + '\n'
         output_str += '* Clustering algorithm used: ' + str(self.algorithm) + '\n'
 
-        output_str +='\n* Validation Indices calculated: ' + str(self.index) + '\n\n'
+        if self.index not in ['all', 'internal', 'external']:
+            idx = list(self.output_df.columns.values)
+        else:
+            idx = self.index
+        output_str +='\n* Validation Indices calculated: ' + str(idx) + '\n\n'
+
 
         output_str +="* Among all indices: \n\n"
 

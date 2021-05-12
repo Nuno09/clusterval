@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 
 install_requires = [
-    'sklearn', 'scipy', 'numpy', 'pandas', 'matplotlib','sympy'
+    'sklearn', 'scipy', 'numpy', 'pandas', 'matplotlib','sympy', 'fastcluster'
 ]
 
 with open('README.md') as f:

@@ -22,10 +22,9 @@ def calculate_internal(data, distance_dict, clustering, indices=['all']):
                      'PBM': pbm, 'Dunn': dunn}
     results = defaultdict(dict)
 
+
     if isinstance(indices, str):
         indices = [x.strip() for x in indices.split(',')]
-
-
 
     for index in indices:
         if index == 'all' or index == 'internal':
@@ -47,7 +46,7 @@ def cvnn(clustering, data, distance_dict):
 
     :param clustering: dictionary with clustering results and respective centroids for each k simulation.
     :param data: dataset being analysed
-    :param distance_dict: distance_dictset represented as a distance matrix.
+    :param distance_dict: dictionary with distance between pairs
     :return: CVNN index
     """
     comp = defaultdict(float)
@@ -174,7 +173,7 @@ def xb_improved(clustering, data, distance_dict): #BIB: New indices for cluster 
 
     :param clustering: dictionary with clustering results and respective centroids for each k simulation.
     :param data: dataset being analysed
-    :param distance_dict: distance_dictset represented as a distance matrix.
+    :param distance_dict: dictionary with distance between pairs
     :return: Xie Beni improved index.
     '''
 
@@ -220,7 +219,7 @@ def s_dbw(clustering, data, distance_dict):
 
     :param clustering: dictionary with clustering results and respective centroids for each k simulation.
     :param data: dataset being analysed
-    :param distance_dict: distance_dictset represented as a distance matrix.
+    :param distance_dict: dictionary with distance between pairs
     :return: S_Dbw index.
     '''
 
@@ -308,7 +307,7 @@ def db_improved(clustering, data, distance_dict):
 
     :param clustering: dictionary with clustering results and respective centroids for each k simulation.
     :param data: dataset being analysed
-    :param distance_dict: distance_dictset represented as a distance matrix.
+    :param distance_dict: dictionary with distance between pairs
     :return: Davies-Bouldin improved index.
     '''
 
@@ -374,7 +373,7 @@ def silhouette(clustering, data, distance_dict):
 
     :param clustering: dictionary with clustering results and respective centroids for each k simulation.
     :param data: dataset being analysed
-    :param distance_dict: distance_dictset represented as a distance matrix.
+    :param distance_dict: dictionary with distance between pairs
     :return: Silhouette index.
     '''
 
@@ -448,7 +447,7 @@ def sd(clustering, data, distance_dict):
 
     :param clustering: dictionary with clustering results and respective centroids for each k simulation.
     :param data: dataset being analysed
-    :param distance_dict: distance_dictset represented as a distance matrix.
+    :param distance_dict: dictionary with distance between pairs
     :return: SD index.
     '''
 
@@ -504,7 +503,7 @@ def pbm(clustering, data, distance_dict):
 
     :param clustering: dictionary with clustering results and respective centroids for each k simulation.
     :param data: dataset being analysed
-    :param distance_dict: distance_dictset represented as a distance matrix.
+    :param distance_dict: dictionary with distance between pairs
     :return: PBM index.
     '''
 
@@ -539,7 +538,7 @@ def dunn(clustering, data, distance_dict):
 
         :param clustering: dictionary with clustering results and respective centroids for each k simulation.
         :param data: dataset being analysed
-        :param distance_dict: distance_dictset represented as a distance matrix.
+        :param distance_dict: dictionary with distance between pairs
         :return: Dunn index.
         '''
 

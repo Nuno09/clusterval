@@ -51,7 +51,7 @@ def calculate_external(partition_a, partition_b, indices=['all']):
 
     indices_funcs = {'AR': adjusted_rand, 'FM': fowlkes_mallows, 'J': jaccard, 'AW': adjusted_wallace,
                      'VD': van_dongen, 'H': hubert_normalized, 'F': f_measure,
-                     'VI': variation_information, 'CD': Czekanowski_Dice, 'K': Kulczynski,
+                     'VI': variation_information, 'K': Kulczynski,
                      'Phi': Phi, 'RT': Rogers_Tanimoto, 'SS': Sokal_Sneath}
     results = defaultdict()
 
