@@ -109,7 +109,8 @@ class Clusterval:
                                                                                                        'count_choice',
                                                                                                        'final_clusters',
                                                                                                        'long_info',
-                                                                                                       'Z']]
+                                                                                                       'Z',
+                                                                                                       '_idx_distance_matrix']]
         args = ','.join(args)
         return 'Clusterval(' + str(args) + ')\nfinal_k = {}'.format(self.final_k)
 
@@ -124,7 +125,8 @@ class Clusterval:
                                                                                                        'count_choice',
                                                                                                        'final_clusters',
                                                                                                         'long_info',
-                                                                                                           'Z']]
+                                                                                                           'Z',
+                                                                                                           '_idx_distance_matrix']]
         args = ';\n'.join(args)
         return 'Clusterval: \n' + str(args) + '\n'
 
