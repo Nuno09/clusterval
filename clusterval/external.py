@@ -120,8 +120,8 @@ def van_dongen(contigency_table, R, C, N):
     VD_i = np.sum(max(contigency_table[i, 0:C]) for i in range(R))
     VD_j = np.sum(max(contigency_table[0: R, j]) for j in range(C))
 
-    van_dongen_index = ((2 * N) - VD_i - VD_j)/ 2*N
-
+    van_dongen_index = ((2 * N) - VD_i - VD_j)/ (2*N)
+    
     return van_dongen_index
 
 
