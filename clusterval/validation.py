@@ -41,23 +41,23 @@ class Clusterval:
     index: list of str or str, optional
     what indices to be calculated. Accepts 'all' to calculate all, 'internal' to calculate only internal indices,
      'external' to calculate external indices, or one of ['AR', 'FM', 'J', 'AW', 'VD', 'H', 'F', 'VI', 'K', 'Phi', 'RT', 'SS',
-     'CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']. Default 'all'.
+     'CVNN', 'XB', 'SDbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']. Default 'all'.
     """
 
     def __init__(self, min_k=2, max_k=8, algorithm='ward', bootstrap_samples=250, index='all'):
 
         external_indices = ['AR', 'FM', 'J', 'AW', 'VD', 'H', 'F', 'VI', 'K', 'Phi', 'RT', 'SS']
 
-        internal_indices = ['CVNN', 'XB', 'S_Dbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']
+        internal_indices = ['CVNN', 'XB', 'SDbw', 'DB', 'S', 'SD', 'PBM', 'Dunn']
 
-        min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB', 'S_Dbw', 'DB', 'SD']
+        min_indices = ['VD', 'VI', 'MS', 'CVNN', 'XB', 'SDbw', 'DB', 'SD']
 
-        idx_distance_matrix = ['XB', 'S_Dbw', 'DB', 'SD', 'PBM']
+        idx_distance_matrix = ['XB', 'SDbw', 'DB', 'SD', 'PBM']
 
         indices = {'AR': ['AR'], 'FM': ['FM'], 'J': ['J'], 'AW': ['AW'], 'VD': ['VD'], 'H': ['H'],
                    'F': ['F'], 'K': ['K'], 'Phi': ['Phi'], 'RT': ['RT'], 'SS': ['SS'],
                    'VI': ['VI'], 'CVNN': ['CVNN'], 'XB': ['XB'],
-                   'S_Dbw': ['S_Dbw'], 'DB': ['DB'], 'S': ['S'], 'SD': ['SD'],'PBM': ['PBM'], 'Dunn': ['Dunn'],
+                   'SDbw': ['SDbw'], 'DB': ['DB'], 'S': ['S'], 'SD': ['SD'],'PBM': ['PBM'], 'Dunn': ['Dunn'],
                    'all': external_indices + internal_indices, 'external': external_indices,
                    'internal': internal_indices
                    }
@@ -239,7 +239,7 @@ class Clusterval:
                     else:
                         results[k][idx] = []
         if not any(self.output_df.columns.values):
-            raise  ValueError('No CVIs being evaluated. If inputing distance matrix, please be aware that SD, XB, S_Dbw, PBM and DB are not possible to calculate.')
+            raise  ValueError('No CVIs being evaluated. If inputing distance matrix, please be aware that SD, XB, SDbw, PBM and DB are not possible to calculate.')
 
         if self.algorithm in ['ward', 'single', 'complete', 'average', 'centroid']:
             self.Z = linkage(data, method=self.algorithm)

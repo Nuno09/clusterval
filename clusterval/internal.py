@@ -18,7 +18,7 @@ def calculate_internal(data, distance_dict, clustering, indices=['all']):
     :return: dictionary with indices values for a range of k number of clusters
     """
 
-    indices_funcs = {'CVNN': cvnn, 'XB': xb_improved, 'S_Dbw': s_dbw, 'DB': db_improved, 'S': silhouette, 'SD': sd,
+    indices_funcs = {'CVNN': cvnn, 'XB': xb_improved, 'SDbw': s_dbw, 'DB': db_improved, 'S': silhouette, 'SD': sd,
                      'PBM': pbm, 'Dunn': dunn}
     results = defaultdict(dict)
 
@@ -220,7 +220,7 @@ def s_dbw(clustering, data, distance_dict):
     :param clustering: dictionary with clustering results and respective centroids for each k simulation.
     :param data: dataset being analysed
     :param distance_dict: dictionary with distance between pairs
-    :return: S_Dbw index.
+    :return: SDbw index.
     '''
 
     s_dbw_index = defaultdict(float)
@@ -380,6 +380,8 @@ def silhouette(clustering, data, distance_dict):
     silhouette_index = defaultdict(float)
     for k, clusters in clustering.items():
         n_c = len(clusters['clusters'])
+        if n_c < 2:
+            raise AttributeError('Generating one single cluster. Try lowering max_k or choose another algorithem from [\'single\', \'complete\', \'ward\', \'centroid\', \'average\', \'kmeans\']')
         sum_clusters_diff = 0
         for i, cluster in enumerate(clusters['clusters']):
             n_i = len(cluster)
@@ -549,15 +551,16 @@ def dunn(clustering, data, distance_dict):
         #get maximum diameter among all clusters
         diameter_all = []
         for c in clusters['clusters']:
-            if len(c) >= 2:
-                pairs = list(itertools.combinations(c, 2))
-                distances = []
-                for pair in pairs:
-                    if pair not in distance_dict.keys():
-                        pair = (pair[1], pair[0])
-                    distances.append(float(distance_dict[pair]))
+            if len(c) < 2:
+                raise AttributeError('Generating one single cluster. Try lowering max_k or choose another algorithem from [\'single\', \'complete\', \'ward\', \'centroid\', \'average\', \'kmeans\']')
+            pairs = list(itertools.combinations(c, 2))
+            distances = []
+            for pair in pairs:
+                if pair not in distance_dict.keys():
+                    pair = (pair[1], pair[0])
+                distances.append(float(distance_dict[pair]))
 
-                diameter_all.append(max(distances))
+            diameter_all.append(max(distances))
 
         max_diameter = max(diameter_all)
 
