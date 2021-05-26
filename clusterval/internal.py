@@ -551,16 +551,15 @@ def dunn(clustering, data, distance_dict):
         #get maximum diameter among all clusters
         diameter_all = []
         for c in clusters['clusters']:
-            if len(c) < 2:
-                raise AttributeError('Generating one single cluster. Try lowering max_k or choose another algorithem from [\'single\', \'complete\', \'ward\', \'centroid\', \'average\', \'kmeans\']')
-            pairs = list(itertools.combinations(c, 2))
-            distances = []
-            for pair in pairs:
-                if pair not in distance_dict.keys():
-                    pair = (pair[1], pair[0])
-                distances.append(float(distance_dict[pair]))
+            if len(c) >= 2:
+		    pairs = list(itertools.combinations(c, 2))
+		    distances = []
+		    for pair in pairs:
+		        if pair not in distance_dict.keys():
+		            pair = (pair[1], pair[0])
+		        distances.append(float(distance_dict[pair]))
 
-            diameter_all.append(max(distances))
+		    diameter_all.append(max(distances))
 
         max_diameter = max(diameter_all)
 
