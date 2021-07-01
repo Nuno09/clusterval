@@ -326,9 +326,9 @@ class Clusterval:
 
             # internal validation step
             if diss_matrix:
-                internal = calculate_internal(data, distances, clustering, indices=['CVNN','S','Dunn'])
+                internal = calculate_internal(clustering, data=data, distance_dict=distances, indices=['CVNN','S','Dunn'])
             else:
-                internal = calculate_internal(data, distances, clustering, indices=self.index)
+                internal = calculate_internal(clustering, data=data, distance_dict=distances, indices=self.index)
 
             for cvi, k_clust in internal.items():
                 for n_c, val in k_clust.items():

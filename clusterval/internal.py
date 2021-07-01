@@ -9,7 +9,7 @@ import clusterval
 from scipy.spatial.distance import euclidean
 import numpy as np
 
-def calculate_internal(data, distance_dict, clustering, indices=['all']):
+def calculate_internal(clustering, data=None, distance_dict=None, indices=['all']):
     """
     :param data: dataset being evaluated
     :param distance_dict: dictionary with distance between pairs
@@ -529,6 +529,7 @@ def pbm(clustering, data, distance_dict):
                     d_max = dist
 
         pbm_index[k] = math.pow((1/k) * (e_t/e_c) * d_max, 2)
+        
 
     return pbm_index
 
@@ -552,14 +553,14 @@ def dunn(clustering, data, distance_dict):
         diameter_all = []
         for c in clusters['clusters']:
             if len(c) >= 2:
-		    pairs = list(itertools.combinations(c, 2))
-		    distances = []
-		    for pair in pairs:
-		        if pair not in distance_dict.keys():
-		            pair = (pair[1], pair[0])
-		        distances.append(float(distance_dict[pair]))
+                pairs = list(itertools.combinations(c, 2))
+                distances = []
+                for pair in pairs:
+                    if pair not in distance_dict.keys():
+                        pair = (pair[1], pair[0])
+                    distances.append(float(distance_dict[pair]))
 
-		    diameter_all.append(max(distances))
+                diameter_all.append(max(distances))
 
         max_diameter = max(diameter_all)
 

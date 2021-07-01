@@ -14,7 +14,7 @@ import itertools
 iris = load_iris()
 data, _ = make_blobs(n_samples=500, centers=4, n_features=5, random_state=0)
 
-c = clusterval.Clusterval(min_k=2, max_k=8, index='S_Dbw,S')
+c = clusterval.Clusterval(min_k=2, max_k=8, index='SDbw,S')
 c.evaluate(data)
 
 def test_basic_run():
@@ -27,9 +27,9 @@ def test_basic_run():
     centroids = clf.centroids_
     clustering = {4: {'clusters': clusters, 'centroids': centroids}}
     distances,_ = c._distance_dict(data)
-    r = clusterval.calculate_internal(data, distances , clustering, indices='S_Dbw, S')
+    r = clusterval.calculate_internal(clustering, data=data, distance_dict=distances, indices='SDbw, S')
 
-    assert r['S_Dbw'][4] == c.output_df.loc[4, 'S_Dbw']
+    assert r['SDbw'][4] == c.output_df.loc[4, 'SDbw']
     assert r['S'][4] == c.output_df.loc[4, 'S']
 
 
