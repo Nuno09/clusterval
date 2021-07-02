@@ -41,11 +41,11 @@ def calculate_external(partition_a, partition_b, indices=['all']):
             a += contigency_table[i][j] * (contigency_table[i][j] - 1)
     a = a / 2
     # computing the number of pair in the same cluster in partition A but in different cluster in partition B
-    b = ((N**2) + sum_all_squared - (sum_R_squared + sum_C_squared)) / 2
+    b = (sum_R_squared- sum_all_squared)/2
     # computing the number of pair in different cluster in partition A but in the same cluster in partition B
     c = (sum_C_squared - sum_all_squared) / 2
     # computing the number of pairs in different cluster both in partition A and partition B
-    d = (sum_R_squared - sum_all_squared    ) / 2
+    d = (N**2 + sum_all_squared - (sum_R_squared + sum_C_squared))/2
 
     M = (a + b + c + d)
 
@@ -90,7 +90,7 @@ def fowlkes_mallows(a, b, c, d, M):
     if ((a + b) == 0 or (a + c) == 0):
         FM = 0
     else:
-        FM = a/math.sqrt(((a + b)) * ((a + c)))
+        FM = a/math.sqrt((a + b) * (a + c))
 
     return FM
 
@@ -193,7 +193,7 @@ def Phi(a, b, c, d, M):
         c = 0
     else:
         c = c1 / c2
-    return c
+    return c*100000
 
 def Rogers_Tanimoto(a, b, c, d, M):
 
