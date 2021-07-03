@@ -146,30 +146,25 @@ def f_measure(a, b, c, d, M):
 
 def variation_information(contigency_table, R, C, N):
     mutual_info = 0
-    mutual_info_aux = 0
-    entropy_C = 0
-    entropy_P = 0
-    flag_entropy = 0
+    
+    #entropy of partition C
+    entropy_C = sum((contigency_table[i][-1] / N) * np.log(contigency_table[i][-1] / N) for i in range(R) if contigency_table[i][-1] / N != 0)
+
+    #entropy of partition P
+    entropy_P = sum((contigency_table[-1][j] / N) * np.log(contigency_table[-1][j] / N) for j in range(C) if contigency_table[-1][j] / N != 0)
+
+    #mutual_info
     for i in range(R):
-        # calculation for entropy
         p_i = contigency_table[i][-1] / N
-        if p_i != 0:
-            entropy_C += (p_i * math.log10(p_i))
         for j in range(C):
-            if flag_entropy == 0:
-                # calculation for entropy
-                p = contigency_table[-1][j] / N
-                if p != 0:
-                    entropy_P += (p * math.log10(p))
-            p_ij = contigency_table[i][j] / N
             p_j = contigency_table[-1][j] / N
+            p_ij = contigency_table[i][j] / N
             if not 0 in [p_ij, p_i, p_j]:
-                mutual_info_aux += (p_ij * math.log10(p_ij / (p_i * p_j)))
-        flag_entropy = 1
-        mutual_info += mutual_info_aux
+                mutual_info += (p_ij * np.log((p_ij/(p_i*p_j))))
+    
 
     VI = -entropy_C - entropy_P - (2 * mutual_info)
-
+    
     return VI
 
 
